@@ -1,0 +1,35 @@
+{
+  "name": "@synapse/sdk",
+  "version": "0.1.0",
+  "description": "Client SDK for Synapse Intent Network",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "dependencies": {
+    "@synapse/types": "*",
+    "socket.io-client": "^4.7.4",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "typescript": "^5.3.3"
+  },
+  "keywords": [
+    "synapse",
+    "ai-agents",
+    "x402",
+    "micropayments",
+    "intent-network"
+  ],
+  "license": "MIT"
+}
