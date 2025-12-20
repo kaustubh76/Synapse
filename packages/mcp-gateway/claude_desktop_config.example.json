@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "synapse": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@synapse/mcp-gateway",
+        "--gateway", "http://localhost:3001",
+        "--budget", "10.00"
+      ],
+      "env": {
+        "SYNAPSE_API_URL": "http://localhost:3001"
+      }
+    }
+  }
+}
