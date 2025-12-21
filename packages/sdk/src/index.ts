@@ -381,7 +381,7 @@ export * from '@synapse/types';
 // x402 Payment Client
 export { X402Client, createX402Client, type X402ClientConfig, type X402PaymentRequest, type X402PaymentProof } from './x402-client.js';
 
-// Crossmint Wallet Integration
+// Crossmint Wallet Integration (Legacy)
 export {
   CrossmintWallet,
   createCrossmintWallet,
@@ -391,6 +391,9 @@ export {
   type TransactionRequest,
   type TransactionResult
 } from './crossmint-wallet.js';
+
+// Crossmint Integration (New - Full SDK integration)
+export * from './crossmint/index.js';
 
 // AI Agent Client
 export {
