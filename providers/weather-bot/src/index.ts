@@ -1,7 +1,7 @@
 // ============================================================
 // SYNAPSE Weather Bot Provider
 // Provides weather data and bids on weather-related intents
-// x402 enabled for direct API access
+// x402 enabled for direct API access with real payment support
 // ============================================================
 
 import express from 'express';
@@ -13,9 +13,15 @@ import {
   WSEventType,
   WSMessage,
   Bid,
-  IntentStatus,
-  x402Middleware,
-  X402Config
+  IntentStatus
+} from '@synapse/types';
+import {
+  // x402 production middleware
+  x402ProductionMiddleware,
+  type X402ProductionConfig,
+  // Facilitator for payment settlement
+  getDefaultFacilitator,
+  type X402Facilitator
 } from '@synapse/core';
 
 dotenv.config();
@@ -289,13 +295,23 @@ function handleNewIntent(intent: Intent): void {
 const app = express();
 app.use(express.json());
 
+// x402 facilitator for payment verification and settlement
+let facilitator: X402Facilitator;
+
+// Initialize x402 facilitator
+async function initializeFacilitator(): Promise<void> {
+  facilitator = getDefaultFacilitator();
+  const demoMode = process.env.X402_DEMO_MODE !== 'false';
+  console.log(`💳 x402 facilitator initialized (demo: ${demoMode})`);
+}
+
 // x402 configuration for direct API access
-const x402Config: X402Config = {
-  price: 0.005,  // $0.005 per request
-  network: process.env.X402_NETWORK || 'base-sepolia',
-  token: 'USDC',
+const x402Config: X402ProductionConfig = {
+  price: '5000', // $0.005 in USDC (6 decimals = 5000 micro-USDC)
+  network: (process.env.X402_NETWORK as 'base' | 'base-sepolia') || 'base-sepolia',
   recipient: PROVIDER_ADDRESS,
-  description: 'WeatherBot Pro - Premium weather data'
+  description: 'WeatherBot Pro - Premium weather data',
+  demoMode: process.env.X402_DEMO_MODE !== 'false'
 };
 
 // Health check (free)
@@ -303,10 +319,10 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', provider: PROVIDER_NAME, providerId });
 });
 
-// Direct weather API (x402 protected)
+// Direct weather API (x402 protected with production middleware)
 // Clients must include X-Payment header with valid payment proof
 app.get('/api/weather',
-  x402Middleware(x402Config),
+  x402ProductionMiddleware(x402Config),
   (req, res) => {
     const city = (req.query.city as string) || 'New York';
     const weather = getWeather(city);
@@ -318,8 +334,10 @@ app.get('/api/weather',
       ...weather,
       x402: paymentInfo ? {
         paid: true,
+        verified: paymentInfo.verified,
         txHash: paymentInfo.txHash,
-        amount: paymentInfo.amount
+        amount: paymentInfo.amount,
+        settled: paymentInfo.settled || false
       } : { paid: false }
     });
   }
@@ -338,6 +356,8 @@ app.get('/api/weather/preview', (req, res) => {
 
 // Start server
 app.listen(PORT, async () => {
+  const demoMode = process.env.X402_DEMO_MODE !== 'false';
+
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
@@ -348,9 +368,14 @@ app.listen(PORT, async () => {
 ║   Capabilities: weather.current, weather.forecast             ║
 ║                                                               ║
 ║   Local API: http://localhost:${PORT}/api/weather               ║
+║   x402 Mode: ${(demoMode ? 'DEMO' : 'PRODUCTION').padEnd(45)}║
+║   Network: ${(x402Config.network).padEnd(47)}║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
   `);
+
+  // Initialize x402 facilitator
+  await initializeFacilitator();
 
   // Connect to Synapse network
   await connectToSynapse();

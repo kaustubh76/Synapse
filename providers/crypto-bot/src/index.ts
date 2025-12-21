@@ -1,7 +1,7 @@
 // ============================================================
 // SYNAPSE Crypto Bot Provider
 // Provides cryptocurrency price data and bids on crypto intents
-// x402 enabled for direct API access
+// x402 enabled for direct API access with real payment support
 // ============================================================
 
 import express from 'express';
@@ -13,9 +13,15 @@ import {
   WSEventType,
   WSMessage,
   Bid,
-  IntentStatus,
-  x402Middleware,
-  X402Config
+  IntentStatus
+} from '@synapse/types';
+import {
+  // x402 production middleware
+  x402ProductionMiddleware,
+  type X402ProductionConfig,
+  // Facilitator for payment settlement
+  getDefaultFacilitator,
+  type X402Facilitator
 } from '@synapse/core';
 
 dotenv.config();
@@ -280,13 +286,23 @@ function handleNewIntent(intent: Intent): void {
 const app = express();
 app.use(express.json());
 
+// x402 facilitator for payment verification and settlement
+let facilitator: X402Facilitator;
+
+// Initialize x402 facilitator
+async function initializeFacilitator(): Promise<void> {
+  facilitator = getDefaultFacilitator();
+  const demoMode = process.env.X402_DEMO_MODE !== 'false';
+  console.log(`💳 x402 facilitator initialized (demo: ${demoMode})`);
+}
+
 // x402 configuration for direct API access
-const x402Config: X402Config = {
-  price: 0.003,  // $0.003 per request - competitive!
-  network: process.env.X402_NETWORK || 'base-sepolia',
-  token: 'USDC',
+const x402Config: X402ProductionConfig = {
+  price: '3000',  // $0.003 in USDC (6 decimals) - competitive!
+  network: (process.env.X402_NETWORK as 'base' | 'base-sepolia') || 'base-sepolia',
   recipient: PROVIDER_ADDRESS,
-  description: 'CryptoOracle - Real-time crypto prices'
+  description: 'CryptoOracle - Real-time crypto prices',
+  demoMode: process.env.X402_DEMO_MODE !== 'false'
 };
 
 // Health check (free)
@@ -294,9 +310,9 @@ app.get('/health', (req, res) => {
   res.json({ status: 'healthy', provider: PROVIDER_NAME, providerId });
 });
 
-// Direct price API (x402 protected)
+// Direct price API (x402 protected with production middleware)
 app.get('/api/price',
-  x402Middleware(x402Config),
+  x402ProductionMiddleware(x402Config),
   (req, res) => {
     const symbol = (req.query.symbol as string) || 'BTC';
     const priceData = getCryptoPrice(symbol);
@@ -306,8 +322,10 @@ app.get('/api/price',
       ...priceData,
       x402: paymentInfo ? {
         paid: true,
+        verified: paymentInfo.verified,
         txHash: paymentInfo.txHash,
-        amount: paymentInfo.amount
+        amount: paymentInfo.amount,
+        settled: paymentInfo.settled || false
       } : { paid: false }
     });
   }
@@ -315,7 +333,7 @@ app.get('/api/price',
 
 // Batch prices (x402 protected with higher price)
 app.get('/api/prices',
-  x402Middleware({ ...x402Config, price: 0.01, description: 'CryptoOracle - Batch prices' }),
+  x402ProductionMiddleware({ ...x402Config, price: '10000', description: 'CryptoOracle - Batch prices' }),
   (req, res) => {
     const symbols = ['BTC', 'ETH', 'SOL', 'BNB', 'XRP', 'ADA', 'DOGE'];
     res.json(symbols.map(s => getCryptoPrice(s)));
@@ -335,6 +353,8 @@ app.get('/api/price/preview', (req, res) => {
 
 // Start server
 app.listen(PORT, async () => {
+  const demoMode = process.env.X402_DEMO_MODE !== 'false';
+
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
@@ -345,9 +365,14 @@ app.listen(PORT, async () => {
 ║   Capabilities: crypto.price, crypto.history                  ║
 ║                                                               ║
 ║   Local API: http://localhost:${PORT}/api/price                 ║
+║   x402 Mode: ${(demoMode ? 'DEMO' : 'PRODUCTION').padEnd(45)}║
+║   Network: ${(x402Config.network).padEnd(47)}║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
   `);
+
+  // Initialize x402 facilitator
+  await initializeFacilitator();
 
   await connectToSynapse();
 });

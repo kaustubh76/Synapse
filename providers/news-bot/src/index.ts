@@ -1,6 +1,7 @@
 // ============================================================
 // SYNAPSE News Bot Provider
 // Provides news aggregation and bids on news intents
+// x402 enabled for direct API access with real payment support
 // ============================================================
 
 import express from 'express';
@@ -14,6 +15,14 @@ import {
   Bid,
   IntentStatus
 } from '@synapse/types';
+import {
+  // x402 production middleware
+  x402ProductionMiddleware,
+  type X402ProductionConfig,
+  // Facilitator for payment settlement
+  getDefaultFacilitator,
+  type X402Facilitator
+} from '@synapse/core';
 
 dotenv.config();
 
@@ -335,22 +344,73 @@ function handleNewIntent(intent: Intent): void {
 const app = express();
 app.use(express.json());
 
+// x402 facilitator for payment verification and settlement
+let facilitator: X402Facilitator;
+
+// Initialize x402 facilitator
+async function initializeFacilitator(): Promise<void> {
+  facilitator = getDefaultFacilitator();
+  const demoMode = process.env.X402_DEMO_MODE !== 'false';
+  console.log(`💳 x402 facilitator initialized (demo: ${demoMode})`);
+}
+
+// x402 configuration for direct API access
+const x402Config: X402ProductionConfig = {
+  price: '8000',  // $0.008 in USDC (6 decimals) - news is more expensive
+  network: (process.env.X402_NETWORK as 'base' | 'base-sepolia') || 'base-sepolia',
+  recipient: PROVIDER_ADDRESS,
+  description: 'NewsAggregator Pro - Comprehensive news from 100+ sources',
+  demoMode: process.env.X402_DEMO_MODE !== 'false'
+};
+
+// Health check (free)
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', provider: PROVIDER_NAME, providerId });
 });
 
-app.get('/api/news', (req, res) => {
+// Direct news API (x402 protected with production middleware)
+app.get('/api/news',
+  x402ProductionMiddleware(x402Config),
+  (req, res) => {
+    const topic = (req.query.topic as string) || 'default';
+    const limit = parseInt(req.query.limit as string) || 5;
+    const paymentInfo = (req as any).x402Payment;
+
+    res.json({
+      topic,
+      articles: getNews(topic, limit),
+      timestamp: Date.now(),
+      x402: paymentInfo ? {
+        paid: true,
+        verified: paymentInfo.verified,
+        txHash: paymentInfo.txHash,
+        amount: paymentInfo.amount,
+        settled: paymentInfo.settled || false
+      } : { paid: false }
+    });
+  }
+);
+
+// Free preview endpoint (limited articles)
+app.get('/api/news/preview', (req, res) => {
   const topic = (req.query.topic as string) || 'default';
-  const limit = parseInt(req.query.limit as string) || 5;
+  const articles = getNews(topic, 2);
   res.json({
     topic,
-    articles: getNews(topic, limit),
-    timestamp: Date.now()
+    articles: articles.map(a => ({
+      title: a.title,
+      source: a.source,
+      publishedAt: a.publishedAt
+      // Summary hidden in preview
+    })),
+    note: 'Upgrade to x402 for full article summaries and more results'
   });
 });
 
 // Start server
 app.listen(PORT, async () => {
+  const demoMode = process.env.X402_DEMO_MODE !== 'false';
+
   console.log(`
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
@@ -361,9 +421,14 @@ app.listen(PORT, async () => {
 ║   Capabilities: news.latest, news.search                      ║
 ║                                                               ║
 ║   Local API: http://localhost:${PORT}/api/news                  ║
+║   x402 Mode: ${(demoMode ? 'DEMO' : 'PRODUCTION').padEnd(45)}║
+║   Network: ${(x402Config.network).padEnd(47)}║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
   `);
+
+  // Initialize x402 facilitator
+  await initializeFacilitator();
 
   await connectToSynapse();
 });
