@@ -1,0 +1,153 @@
+# ============================================================
+# SYNAPSE - Docker Compose Configuration
+# ============================================================
+# Usage:
+#   docker-compose up -d          # Start all services
+#   docker-compose up api web     # Start specific services
+#   docker-compose logs -f api    # View logs
+#   docker-compose down           # Stop all services
+# ============================================================
+
+services:
+  # ----------------------------------------
+  # Core API Server
+  # ----------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: api
+    container_name: synapse-api
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=production
+      - API_PORT=3001
+      - THIRDWEB_SECRET_KEY=${THIRDWEB_SECRET_KEY}
+      - CROSSMINT_API_KEY=${CROSSMINT_API_KEY}
+      - X402_NETWORK=${X402_NETWORK:-base-sepolia}
+      - X402_DEMO_MODE=${X402_DEMO_MODE:-true}
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    networks:
+      - synapse-network
+
+  # ----------------------------------------
+  # Web Dashboard (Next.js)
+  # ----------------------------------------
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: web
+    container_name: synapse-web
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_URL=http://api:3001
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - synapse-network
+
+  # ----------------------------------------
+  # MCP Gateway Server
+  # ----------------------------------------
+  mcp-gateway:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: mcp-gateway
+    container_name: synapse-mcp-gateway
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=production
+      - MCP_PORT=3002
+      - SYNAPSE_API_URL=http://api:3001
+      - THIRDWEB_SECRET_KEY=${THIRDWEB_SECRET_KEY}
+      - CROSSMINT_API_KEY=${CROSSMINT_API_KEY}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - synapse-network
+
+  # ----------------------------------------
+  # Weather Bot Provider
+  # ----------------------------------------
+  weather-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: weather-bot
+    container_name: synapse-weather-bot
+    ports:
+      - "3010:3010"
+    environment:
+      - NODE_ENV=production
+      - PORT=3010
+      - SYNAPSE_API_URL=http://api:3001
+      - X402_NETWORK=${X402_NETWORK:-base-sepolia}
+      - X402_DEMO_MODE=${X402_DEMO_MODE:-true}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - synapse-network
+
+  # ----------------------------------------
+  # Crypto Bot Provider
+  # ----------------------------------------
+  crypto-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: crypto-bot
+    container_name: synapse-crypto-bot
+    ports:
+      - "3020:3020"
+    environment:
+      - NODE_ENV=production
+      - PORT=3020
+      - SYNAPSE_API_URL=http://api:3001
+      - X402_NETWORK=${X402_NETWORK:-base-sepolia}
+      - X402_DEMO_MODE=${X402_DEMO_MODE:-true}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - synapse-network
+
+  # ----------------------------------------
+  # News Bot Provider
+  # ----------------------------------------
+  news-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: news-bot
+    container_name: synapse-news-bot
+    ports:
+      - "3030:3030"
+    environment:
+      - NODE_ENV=production
+      - PORT=3030
+      - SYNAPSE_API_URL=http://api:3001
+      - X402_NETWORK=${X402_NETWORK:-base-sepolia}
+      - X402_DEMO_MODE=${X402_DEMO_MODE:-true}
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - synapse-network
+
+networks:
+  synapse-network:
+    driver: bridge
