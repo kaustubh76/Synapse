@@ -10,24 +10,24 @@ import {
   getEigenComputeClient,
   ExecutionResult,
   ExecutionRequest
-} from './eigen-compute';
+} from './eigen-compute.js';
 import {
   ERC8004RegistryClient,
   getERC8004RegistryClient,
   OnChainAgentProfile,
   AgentRegistration
-} from './erc8004-registry';
+} from './erc8004-registry.js';
 import {
   TEEAttestationService,
   getTEEAttestationService,
   AttestationResult
-} from './tee-attestation';
+} from './tee-attestation.js';
 import {
   ZKProofService,
   getZKProofService,
   ZKProof,
   ZKVerificationResult
-} from './zk-proofs';
+} from './zk-proofs.js';
 
 export interface EigencloudConfig {
   // EigenCompute config

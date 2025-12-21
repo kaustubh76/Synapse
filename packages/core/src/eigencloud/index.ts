@@ -11,7 +11,7 @@ export {
   type ExecutionResult,
   type ExecutionRequest,
   type DeploymentResult
-} from './eigen-compute';
+} from './eigen-compute.js';
 
 export {
   ERC8004RegistryClient,
@@ -24,7 +24,7 @@ export {
   type ReputationData,
   type ValidationResponse,
   type AgentRegistration as ERC8004AgentRegistration
-} from './erc8004-registry';
+} from './erc8004-registry.js';
 
 export {
   TEEAttestationService,
@@ -34,7 +34,7 @@ export {
   type AttestationConfig,
   type AttestationQuote,
   type AttestationRequest
-} from './tee-attestation';
+} from './tee-attestation.js';
 
 export {
   ZKProofService,
@@ -45,7 +45,7 @@ export {
   type ZKProofConfig,
   type ProofGenerationRequest,
   type ProofVerificationRequest
-} from './zk-proofs';
+} from './zk-proofs.js';
 
 export {
   EigencloudService,
@@ -54,4 +54,4 @@ export {
   type EigencloudConfig,
   type VerifiedExecution,
   type AgentVerificationStatus
-} from './eigencloud-service';
+} from './eigencloud-service.js';

@@ -11,10 +11,10 @@ import {
   EigencloudService,
   type VerifiedExecution,
   type AgentVerificationStatus
-} from './eigencloud';
-import { type OnChainAgentProfile } from './eigencloud/erc8004-registry';
-import { type ExecutionResult } from './eigencloud/eigen-compute';
-import { type AttestationResult } from './eigencloud/tee-attestation';
+} from './eigencloud/index.js';
+import { type OnChainAgentProfile } from './eigencloud/erc8004-registry.js';
+import { type ExecutionResult } from './eigencloud/eigen-compute.js';
+import { type AttestationResult } from './eigencloud/tee-attestation.js';
 
 export enum VerificationLevel {
   UNVERIFIED = 0,
@@ -623,7 +623,7 @@ export class AgentIdentityRegistry extends EventEmitter<AgentIdentityEvents> {
     });
 
     // Convert to local profiles
-    return onChainAgents.map(oca => this.onChainToLocalProfile(oca));
+    return onChainAgents.map((oca: OnChainAgentProfile) => this.onChainToLocalProfile(oca));
   }
 
   /**

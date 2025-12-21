@@ -86,6 +86,64 @@ export {
   type DisputeOpenRequest
 } from './dispute-resolver.js';
 
+// x402 Payment Integration (Real x402 protocol with thirdweb)
+// Renamed exports to avoid conflict with legacy x402Middleware
+export {
+  x402Middleware as x402ProductionMiddleware,
+  x402DynamicMiddleware as x402ProductionDynamicMiddleware,
+  x402RouterMiddleware,
+  hasValidPayment,
+  getPaymentDetails,
+  type X402Request
+} from './x402/x402-express-middleware.js';
+
+export {
+  ThirdwebFacilitator,
+  LocalFacilitator,
+  createThirdwebFacilitator,
+  createLocalFacilitator,
+  getFacilitator,
+  getDefaultFacilitator,
+  resetFacilitator
+} from './x402/x402-facilitator.js';
+
+export {
+  X402Client,
+  createX402Client,
+  createDemoX402Client
+} from './x402/x402-client.js';
+
+export {
+  type X402Network,
+  type X402PaymentRequirements,
+  type X402PaymentPayload,
+  type X402VerificationResult,
+  type X402SettlementResult,
+  type X402FacilitatorConfig,
+  type X402MiddlewareConfig as X402ProductionConfig,
+  type X402Facilitator,
+  USDC_ADDRESSES,
+  NETWORK_CHAIN_IDS,
+  X402_HEADERS,
+  encodePaymentRequirements,
+  decodePaymentPayload,
+  parseUSDCAmount,
+  formatUSDCAmount,
+  generateNonce
+} from './x402/x402-types.js';
+
+// Payment Service (orchestrates x402 + escrow)
+export {
+  PaymentService,
+  createPaymentService,
+  getPaymentService,
+  resetPaymentService,
+  type PaymentServiceConfig,
+  type IntentPayment,
+  type PaymentSettlement,
+  type EscrowEntry
+} from './payment-service.js';
+
 // Eigencloud Integration (ERC-8004 + EigenCompute + TEE + ZK)
 export {
   EigencloudService,
