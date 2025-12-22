@@ -126,8 +126,23 @@ async function main(): Promise<void> {
     const request = req.body as MCPRequest;
     const handler = new MCPHandler();
 
+    // Extract x402 payment header
+    const paymentHeader = req.headers['x-payment'] as string | undefined;
+    handler.setPaymentHeader(paymentHeader);
+
     try {
       const response = await handler.processRequest(request);
+
+      // If 402 response, add payment header to SSE
+      if (response.error?.code === 402 && response.error.data) {
+        const data = response.error.data as { header?: string };
+        if (data.header) {
+          sendSSE(sseRes, 'payment_required', {
+            ...response,
+            paymentHeader: data.header,
+          });
+        }
+      }
 
       // Send response via SSE
       sendSSE(sseRes, 'message', response);
@@ -173,12 +188,24 @@ async function main(): Promise<void> {
       }
     }
 
+    // Extract x402 payment header
+    const paymentHeader = req.headers['x-payment'] as string | undefined;
+    handler.setPaymentHeader(paymentHeader);
+
     // Set up streaming response
     res.setHeader('Content-Type', 'application/json');
 
     // Forward progress as newline-delimited JSON
     handler.on('progress', (data) => {
       res.write(JSON.stringify({ type: 'progress', data }) + '\n');
+    });
+
+    // Forward x402 events
+    handler.on('x402:payment_required', (data) => {
+      res.write(JSON.stringify({ type: 'x402:payment_required', data }) + '\n');
+    });
+    handler.on('x402:payment_verified', (data) => {
+      res.write(JSON.stringify({ type: 'x402:payment_verified', data }) + '\n');
     });
 
     try {
@@ -192,6 +219,14 @@ async function main(): Promise<void> {
           const sid = synapseData.sessionId;
           httpHandlers.set(sid, handler);
           res.setHeader('X-MCP-Session', sid);
+        }
+      }
+
+      // If 402 response, add X-Payment-Response header
+      if (response.error?.code === 402 && response.error.data) {
+        const data = response.error.data as { header?: string };
+        if (data.header) {
+          res.setHeader('X-Payment-Response', data.header);
         }
       }
 
@@ -218,6 +253,10 @@ async function main(): Promise<void> {
     const request = req.body as MCPRequest;
     const handler = new MCPHandler();
 
+    // Extract x402 payment header
+    const paymentHeader = req.headers['x-payment'] as string | undefined;
+    handler.setPaymentHeader(paymentHeader);
+
     // Auto-initialize for stateless requests
     if (request.method !== 'initialize') {
       await handler.processRequest({
@@ -234,6 +273,15 @@ async function main(): Promise<void> {
 
     try {
       const response = await handler.processRequest(request);
+
+      // If 402 response, add X-Payment-Response header
+      if (response.error?.code === 402 && response.error.data) {
+        const data = response.error.data as { header?: string };
+        if (data.header) {
+          res.setHeader('X-Payment-Response', data.header);
+        }
+      }
+
       res.json(response);
     } catch (error) {
       console.error('[MCP Message] Error:', error);
@@ -264,9 +312,37 @@ async function main(): Promise<void> {
       });
     });
 
-    // Handle MCP messages
-    socket.on('message', async (request: MCPRequest) => {
+    // Forward x402 payment events
+    handler.on('x402:payment_required', (data) => {
+      socket.emit('notification', {
+        jsonrpc: '2.0',
+        method: 'x402/paymentRequired',
+        params: data,
+      });
+    });
+    handler.on('x402:payment_received', (data) => {
+      socket.emit('notification', {
+        jsonrpc: '2.0',
+        method: 'x402/paymentReceived',
+        params: data,
+      });
+    });
+    handler.on('x402:payment_verified', (data) => {
+      socket.emit('notification', {
+        jsonrpc: '2.0',
+        method: 'x402/paymentVerified',
+        params: data,
+      });
+    });
+
+    // Handle MCP messages with x402 payment support
+    socket.on('message', async (request: MCPRequest & { _x402?: { payment?: string } }) => {
       try {
+        // Extract x402 payment from message payload
+        if (request._x402?.payment) {
+          handler.setPaymentHeader(request._x402.payment);
+        }
+
         const response = await handler.processRequest(request);
         socket.emit('message', response);
       } catch (error) {

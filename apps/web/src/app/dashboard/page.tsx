@@ -266,6 +266,14 @@ export default function Dashboard() {
             </div>
 
             <div className="flex items-center gap-4">
+              <Link
+                href="/x402"
+                className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-synapse-600 to-purple-600 text-white text-sm font-medium hover:opacity-90 transition-opacity"
+              >
+                <DollarSign className="w-4 h-4" />
+                x402 Payments
+              </Link>
+
               <button
                 onClick={fetchData}
                 disabled={isLoading}

@@ -1,6 +1,6 @@
 // ============================================================
 // SYNAPSE MCP GATEWAY - Request Handler
-// Processes MCP protocol requests
+// Processes MCP protocol requests with x402 Payment Support
 // ============================================================
 
 import { EventEmitter } from 'events';
@@ -18,6 +18,7 @@ import type {
 } from './types.js';
 import { getSessionManager, SessionManager } from './session-manager.js';
 import { getToolGenerator, ToolGenerator, toolNameToIntentType } from './tool-generator.js';
+import { X402Integration, X402IntegrationConfig, getX402Integration } from './x402-integration.js';
 
 const API_URL = process.env.SYNAPSE_API_URL || 'http://localhost:3001';
 
@@ -54,12 +55,33 @@ interface ProviderData {
 export class MCPHandler extends EventEmitter {
   private sessionManager: SessionManager;
   private toolGenerator: ToolGenerator;
+  private x402: X402Integration;
   private sessionId: string | null = null;
+  private paymentHeader: string | undefined = undefined;
 
-  constructor() {
+  constructor(x402Config?: Partial<X402IntegrationConfig>) {
     super();
     this.sessionManager = getSessionManager();
     this.toolGenerator = getToolGenerator();
+    this.x402 = getX402Integration();
+
+    // Set up x402 event forwarding
+    this.x402.on('payment:required', (tool, requirements) => {
+      this.emit('x402:payment_required', { tool, requirements });
+    });
+    this.x402.on('payment:received', (tool, receipt) => {
+      this.emit('x402:payment_received', { tool, receipt });
+    });
+    this.x402.on('payment:verified', (tool, payer, amount) => {
+      this.emit('x402:payment_verified', { tool, payer, amount });
+    });
+  }
+
+  /**
+   * Set payment header for x402 verification
+   */
+  setPaymentHeader(header: string | undefined): void {
+    this.paymentHeader = header;
   }
 
   /**
@@ -93,6 +115,11 @@ export class MCPHandler extends EventEmitter {
           return this.handleSynapseGetHistory(request);
         case 'synapse/closeSession':
           return this.handleSynapseCloseSession(request);
+        // x402 Payment Protocol methods
+        case 'x402/getPrice':
+        case 'x402/getEarnings':
+        case 'x402/listPricing':
+          return this.handleX402Method(request);
         default:
           return this.errorResponse(request.id, -32601, `Method not found: ${request.method}`);
       }
@@ -179,7 +206,7 @@ export class MCPHandler extends EventEmitter {
   }
 
   /**
-   * Handle tools/call request
+   * Handle tools/call request with x402 payment support
    */
   private async handleToolsCall(request: MCPRequest): Promise<MCPResponse> {
     const params = request.params as ToolCallArgs;
@@ -201,32 +228,42 @@ export class MCPHandler extends EventEmitter {
     // Ensure tools are refreshed for proper mappings
     await this.refreshTools();
 
-    // Handle Synapse core tools
+    // Handle Synapse core tools (always free)
     if (this.toolGenerator.isCoreTools(params.name)) {
       return this.handleSynapseTool(request, params);
     }
 
-    // Execute intent via Synapse API
-    const startTime = Date.now();
-    const result = await this.executeIntent(params, session);
+    // ============================================================
+    // x402 PAYMENT INTEGRATION
+    // ============================================================
+    // Process tool call with x402 payment verification
+    return this.x402.processToolCall(
+      request,
+      this.paymentHeader,
+      async () => {
+        // Execute intent via Synapse API
+        const startTime = Date.now();
+        const result = await this.executeIntent(params, session);
 
-    // Record latency
-    this.sessionManager.recordLatency(this.sessionId, Date.now() - startTime);
+        // Record latency
+        this.sessionManager.recordLatency(this.sessionId!, Date.now() - startTime);
 
-    if (result.isError) {
-      this.sessionManager.recordError(this.sessionId);
-      return this.errorResponse(
-        request.id,
-        -32603,
-        result.content[0]?.text || 'Execution failed'
-      );
-    }
+        if (result.isError) {
+          this.sessionManager.recordError(this.sessionId!);
+          return this.errorResponse(
+            request.id,
+            -32603,
+            result.content[0]?.text || 'Execution failed'
+          );
+        }
 
-    return {
-      jsonrpc: '2.0',
-      id: request.id,
-      result: result,
-    };
+        return {
+          jsonrpc: '2.0',
+          id: request.id,
+          result: result,
+        };
+      }
+    );
   }
 
   /**
@@ -871,6 +908,41 @@ export class MCPHandler extends EventEmitter {
         stats: this.sessionManager.getSessionStats(session.id),
       },
     };
+  }
+
+  /**
+   * Handle x402 protocol methods
+   */
+  private async handleX402Method(request: MCPRequest): Promise<MCPResponse> {
+    const methods = this.x402.getX402Methods();
+    const method = methods.find(m => m.method === request.method);
+
+    if (!method) {
+      return this.errorResponse(request.id, -32601, `x402 method not found: ${request.method}`);
+    }
+
+    return method.handler(request);
+  }
+
+  /**
+   * Get x402 earnings statistics
+   */
+  getX402Earnings(): { total: string; byTool: Record<string, string>; transactionCount: number } {
+    return this.x402.getEarnings();
+  }
+
+  /**
+   * Check if a tool requires payment
+   */
+  toolRequiresPayment(toolName: string): boolean {
+    return this.x402.requiresPayment(toolName);
+  }
+
+  /**
+   * Get price for a tool
+   */
+  getToolPrice(toolName: string): string {
+    return this.x402.getPrice(toolName);
   }
 
   /**
