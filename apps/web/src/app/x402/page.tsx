@@ -1,11 +1,11 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import Link from 'next/link'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import {
   ArrowLeft, Wallet, BarChart3, TrendingUp, Grid,
-  RefreshCw, Settings, Wifi, WifiOff
+  RefreshCw, Wifi, WifiOff, Zap, AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useSocket } from '@/hooks/useSocket'
@@ -19,19 +19,70 @@ import {
 
 type TabType = 'economy' | 'wallet' | 'earnings' | 'tools'
 
+interface WalletData {
+  id: string
+  address: string
+  chain: string
+  type: string
+  linkedUser: string
+}
+
 export default function X402Page() {
   const { isConnected } = useSocket()
   const [activeTab, setActiveTab] = useState<TabType>('economy')
+  const [walletData, setWalletData] = useState<WalletData | null>(null)
   const [walletAddress, setWalletAddress] = useState<string | undefined>(undefined)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [connectionError, setConnectionError] = useState<string | null>(null)
 
-  const handleConnect = async () => {
+  const handleConnect = useCallback(async () => {
     setIsConnecting(true)
-    // Simulate wallet connection - in production, use wagmi/viem
-    await new Promise(resolve => setTimeout(resolve, 1500))
-    setWalletAddress('0x742d35Cc6634C0532925a3b844Bc9e7595f3Ed7d')
-    setIsConnecting(false)
-  }
+    setConnectionError(null)
+
+    try {
+      // Create or get wallet via Crossmint API
+      const response = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          linkedUser: `synapse-agent-${Date.now()}`,
+          chain: 'base-sepolia',
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create wallet')
+      }
+
+      if (data.success && data.wallet) {
+        setWalletData(data.wallet)
+        setWalletAddress(data.wallet.address)
+        console.log('[x402] Wallet connected:', data.wallet)
+      } else {
+        throw new Error('Invalid wallet response')
+      }
+    } catch (error) {
+      console.error('[x402] Wallet connection error:', error)
+      setConnectionError(error instanceof Error ? error.message : 'Connection failed')
+
+      // Fallback to demo mode if API fails
+      const demoAddress = '0x742d35Cc6634C0532925a3b844Bc9e7595f3Ed7d'
+      setWalletAddress(demoAddress)
+      setWalletData({
+        id: 'demo-wallet',
+        address: demoAddress,
+        chain: 'base-sepolia',
+        type: 'demo',
+        linkedUser: 'demo-agent',
+      })
+    } finally {
+      setIsConnecting(false)
+    }
+  }, [])
 
   const tabs: Array<{ id: TabType; label: string; icon: React.ReactNode }> = [
     { id: 'economy', label: 'Economy', icon: <BarChart3 className="w-4 h-4" /> },
@@ -41,30 +92,48 @@ export default function X402Page() {
   ]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-950">
+    <div className="min-h-screen bg-dark-950 bg-mesh">
+      {/* Ambient glow effects */}
+      <div className="fixed inset-0 pointer-events-none">
+        <div className="absolute top-0 left-1/4 w-96 h-96 bg-accent-500/10 rounded-full blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-accent-500/5 rounded-full blur-3xl" />
+      </div>
+
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-10">
+      <header className="sticky top-0 z-20 glass-dark border-b border-dark-800/50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <Link
                 href="/dashboard"
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
+                className="flex items-center gap-2 text-dark-400 hover:text-white transition-colors group"
               >
-                <ArrowLeft className="w-5 h-5" />
-                Dashboard
+                <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                <span className="hidden sm:inline">Dashboard</span>
               </Link>
-              <div className="h-6 w-px bg-gray-700" />
+              <div className="divider-vertical" />
               <div>
-                <h1 className="text-xl font-bold text-white">x402 Payment Protocol</h1>
-                <p className="text-xs text-gray-500">Agent Economy Infrastructure</p>
+                <div className="flex items-center gap-2">
+                  <Zap className="w-5 h-5 text-accent-400" />
+                  <h1 className="text-xl font-bold text-white">x402 Protocol</h1>
+                </div>
+                <p className="text-xs text-dark-500 mt-0.5">Agent Economy Infrastructure</p>
               </div>
             </div>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {connectionError && (
+                <div className="flex items-center gap-2 px-3 py-1.5 bg-amber-500/10 text-amber-400 rounded-lg text-xs">
+                  <AlertCircle className="w-3 h-3" />
+                  <span>Demo Mode</span>
+                </div>
+              )}
               {walletAddress ? (
-                <div className="flex items-center gap-2 px-4 py-2 bg-gray-800 rounded-lg">
-                  <div className="w-2 h-2 bg-green-400 rounded-full" />
+                <div className="flex items-center gap-2 px-4 py-2 glass rounded-lg">
+                  <div className={cn(
+                    "status-dot live-indicator",
+                    walletData?.type === 'demo' ? 'status-dot-warning' : 'status-dot-online'
+                  )} />
                   <span className="text-sm text-white font-mono">
                     {walletAddress.slice(0, 6)}...{walletAddress.slice(-4)}
                   </span>
@@ -73,113 +142,135 @@ export default function X402Page() {
                 <button
                   onClick={handleConnect}
                   disabled={isConnecting}
-                  className="flex items-center gap-2 px-4 py-2 bg-synapse-600 hover:bg-synapse-500 text-white rounded-lg font-medium transition-colors disabled:opacity-50"
+                  className="btn-glow flex items-center gap-2 disabled:opacity-50"
                 >
                   {isConnecting ? (
                     <RefreshCw className="w-4 h-4 animate-spin" />
                   ) : (
                     <Wallet className="w-4 h-4" />
                   )}
-                  {isConnecting ? 'Connecting...' : 'Connect Wallet'}
+                  {isConnecting ? 'Creating Wallet...' : 'Connect Wallet'}
                 </button>
               )}
 
               <div className={cn(
                 'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm',
-                isConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
+                isConnected
+                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                  : 'bg-dark-800/50 text-dark-400 border border-dark-700/50'
               )}>
-                {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-                {isConnected ? 'Live' : 'Offline'}
+                {isConnected ? (
+                  <>
+                    <span className="status-dot status-dot-online live-indicator" />
+                    <span>Live</span>
+                  </>
+                ) : (
+                  <>
+                    <WifiOff className="w-4 h-4" />
+                    <span>Offline</span>
+                  </>
+                )}
               </div>
             </div>
           </div>
 
           {/* Tabs */}
-          <div className="flex gap-1 mt-4 -mb-4">
+          <div className="flex gap-1 mt-4 -mb-4 overflow-x-auto pb-px">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
                 className={cn(
-                  'flex items-center gap-2 px-4 py-3 rounded-t-lg text-sm font-medium transition-colors relative',
+                  'relative flex items-center gap-2 px-4 py-3 text-sm font-medium transition-all',
+                  'rounded-t-lg whitespace-nowrap',
                   activeTab === tab.id
-                    ? 'bg-gray-800 text-white'
-                    : 'text-gray-400 hover:text-white hover:bg-gray-800/50'
+                    ? 'text-accent-400'
+                    : 'text-dark-400 hover:text-dark-200 hover:bg-dark-800/30'
                 )}
               >
                 {tab.icon}
                 {tab.label}
                 {activeTab === tab.id && (
                   <motion.div
-                    layoutId="activeTab"
-                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-synapse-500"
+                    layoutId="activeTabIndicator"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-accent-500"
+                    style={{ borderRadius: '2px 2px 0 0' }}
+                    transition={{ type: 'spring', stiffness: 500, damping: 30 }}
                   />
                 )}
               </button>
             ))}
           </div>
         </div>
+        {/* Gradient border at bottom */}
+        <div className="divider-glow" />
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
-        {/* Tab Content */}
-        <motion.div
-          key={activeTab}
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2 }}
-        >
-          {activeTab === 'economy' && (
-            <AgentEconomyStats />
-          )}
+      {/* Main Content */}
+      <main className="relative z-10 max-w-7xl mx-auto px-4 py-8">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={activeTab}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+          >
+            {activeTab === 'economy' && (
+              <AgentEconomyStats />
+            )}
 
-          {activeTab === 'wallet' && (
-            <WalletDashboard
-              walletAddress={walletAddress}
-              network="base-sepolia"
-              onConnect={handleConnect}
-            />
-          )}
+            {activeTab === 'wallet' && (
+              <WalletDashboard
+                walletAddress={walletAddress}
+                network="base-sepolia"
+                onConnect={handleConnect}
+              />
+            )}
 
-          {activeTab === 'earnings' && (
-            <EarningsDashboard
-              providerId={walletAddress}
-              onWithdraw={() => console.log('Withdraw clicked')}
-            />
-          )}
+            {activeTab === 'earnings' && (
+              <EarningsDashboard
+                providerId={walletAddress}
+                onWithdraw={() => console.log('Withdraw clicked')}
+              />
+            )}
 
-          {activeTab === 'tools' && (
-            <ToolRegistryBrowser
-              onToolSelect={(tool) => console.log('Selected tool:', tool)}
-              onCallTool={(tool) => console.log('Call tool:', tool)}
-            />
-          )}
-        </motion.div>
+            {activeTab === 'tools' && (
+              <ToolRegistryBrowser
+                onToolSelect={(tool) => console.log('Selected tool:', tool)}
+                onCallTool={(tool) => console.log('Call tool:', tool)}
+              />
+            )}
+          </motion.div>
+        </AnimatePresence>
       </main>
 
-      {/* Footer Info */}
-      <footer className="border-t border-gray-800 bg-gray-900/50">
+      {/* Footer */}
+      <footer className="relative z-10 glass-dark border-t border-dark-800/50 mt-auto">
         <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between text-sm text-gray-500">
+          <div className="flex items-center justify-between text-sm text-dark-500">
             <div className="flex items-center gap-4">
-              <span>Network: Base Sepolia</span>
-              <span>•</span>
-              <span>Protocol Version: 1.0.0</span>
+              <div className="flex items-center gap-2">
+                <div className="status-dot status-dot-online" />
+                <span>Base Sepolia</span>
+              </div>
+              <div className="divider-vertical" />
+              <span>Protocol v1.0.0</span>
             </div>
             <div className="flex items-center gap-4">
               <a
                 href="https://github.com/anthropics/x402"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-white transition-colors"
+                className="hover:text-accent-400 transition-colors"
               >
-                x402 Protocol Spec
+                Protocol Spec
               </a>
               <a
-                href="https://basescan.org"
+                href="https://sepolia.basescan.org"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hover:text-white transition-colors"
+                className="hover:text-accent-400 transition-colors"
               >
                 Block Explorer
               </a>

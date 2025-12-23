@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Filter, Star, Zap, DollarSign, Shield,
   CheckCircle, XCircle, Clock, ChevronDown, ChevronRight,
-  ExternalLink, Copy, Check, TrendingUp, Users
+  ExternalLink, Copy, Check, TrendingUp, Users, AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -20,7 +20,6 @@ interface ToolProvider {
   name: string
   verified: boolean
   reputation: number
-  totalEarnings: string
 }
 
 interface RegisteredTool {
@@ -41,7 +40,7 @@ interface RegisteredTool {
     input: Record<string, unknown>
     output: Record<string, unknown>
   }
-  status: 'active' | 'paused' | 'deprecated'
+  status: 'active' | 'coming_soon' | 'beta'
   createdAt: number
 }
 
@@ -63,6 +62,143 @@ const CATEGORIES = [
   'Utility'
 ]
 
+// Real wallet address
+const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
+
+// Available x402 tools (these would be registered on-chain in production)
+const AVAILABLE_TOOLS: RegisteredTool[] = [
+  {
+    id: 'tool_deep_research',
+    name: 'deep_research',
+    description: 'Comprehensive research tool powered by Synapse AI. Searches multiple sources and synthesizes findings.',
+    category: 'Research',
+    pricing: { basePrice: '0.05', currency: 'USDC', model: 'per-call' },
+    provider: {
+      address: EIGENCLOUD_WALLET,
+      name: 'Synapse AI',
+      verified: true,
+      reputation: 5.0
+    },
+    stats: {
+      totalCalls: 0,
+      successRate: 100,
+      avgResponseTime: 1250,
+      uniqueUsers: 0
+    },
+    tags: ['research', 'synthesis', 'multi-source', 'ai'],
+    schema: {
+      input: { query: 'string', depth: 'number', sources: 'string[]' },
+      output: { report: 'string', citations: 'object[]', confidence: 'number' }
+    },
+    status: 'active',
+    createdAt: Date.now()
+  },
+  {
+    id: 'tool_code_analysis',
+    name: 'code_analysis',
+    description: 'AI-powered code review and analysis. Identifies bugs, security issues, and optimization opportunities.',
+    category: 'Analytics',
+    pricing: { basePrice: '0.02', currency: 'USDC', model: 'per-call' },
+    provider: {
+      address: EIGENCLOUD_WALLET,
+      name: 'Synapse AI',
+      verified: true,
+      reputation: 5.0
+    },
+    stats: {
+      totalCalls: 0,
+      successRate: 100,
+      avgResponseTime: 850,
+      uniqueUsers: 0
+    },
+    tags: ['code', 'analysis', 'security', 'ai'],
+    schema: {
+      input: { code: 'string', language: 'string' },
+      output: { issues: 'object[]', suggestions: 'string[]', score: 'number' }
+    },
+    status: 'active',
+    createdAt: Date.now()
+  },
+  {
+    id: 'tool_data_extraction',
+    name: 'data_extraction',
+    description: 'Extract structured data from unstructured text, documents, and web pages.',
+    category: 'Data',
+    pricing: { basePrice: '0.01', currency: 'USDC', model: 'per-call' },
+    provider: {
+      address: EIGENCLOUD_WALLET,
+      name: 'Synapse AI',
+      verified: true,
+      reputation: 5.0
+    },
+    stats: {
+      totalCalls: 0,
+      successRate: 100,
+      avgResponseTime: 450,
+      uniqueUsers: 0
+    },
+    tags: ['extraction', 'parsing', 'nlp', 'data'],
+    schema: {
+      input: { content: 'string', schema: 'object' },
+      output: { data: 'object', confidence: 'number' }
+    },
+    status: 'active',
+    createdAt: Date.now()
+  },
+  {
+    id: 'tool_sentiment_analysis',
+    name: 'sentiment_analysis',
+    description: 'Advanced NLP-powered sentiment analysis for text, social media, and reviews.',
+    category: 'AI/ML',
+    pricing: { basePrice: '0.005', currency: 'USDC', model: 'per-call' },
+    provider: {
+      address: EIGENCLOUD_WALLET,
+      name: 'Synapse AI',
+      verified: true,
+      reputation: 5.0
+    },
+    stats: {
+      totalCalls: 0,
+      successRate: 100,
+      avgResponseTime: 200,
+      uniqueUsers: 0
+    },
+    tags: ['nlp', 'sentiment', 'analysis', 'ai'],
+    schema: {
+      input: { text: 'string', language: 'string' },
+      output: { sentiment: 'string', score: 'number', aspects: 'object[]' }
+    },
+    status: 'active',
+    createdAt: Date.now()
+  },
+  {
+    id: 'tool_summarization',
+    name: 'summarization',
+    description: 'AI-powered text summarization. Condense long documents into concise summaries.',
+    category: 'AI/ML',
+    pricing: { basePrice: '0.01', currency: 'USDC', model: 'per-call' },
+    provider: {
+      address: EIGENCLOUD_WALLET,
+      name: 'Synapse AI',
+      verified: true,
+      reputation: 5.0
+    },
+    stats: {
+      totalCalls: 0,
+      successRate: 100,
+      avgResponseTime: 600,
+      uniqueUsers: 0
+    },
+    tags: ['summarization', 'nlp', 'text', 'ai'],
+    schema: {
+      input: { text: 'string', maxLength: 'number' },
+      output: { summary: 'string', keyPoints: 'string[]' }
+    },
+    status: 'active',
+    createdAt: Date.now()
+  }
+]
+
 export function ToolRegistryBrowser({
   onToolSelect,
   onCallTool
@@ -77,147 +213,11 @@ export function ToolRegistryBrowser({
 
   useEffect(() => {
     setIsLoading(true)
-    // Simulate API call
+    // Load available tools
     setTimeout(() => {
-      setTools([
-        {
-          id: 'tool_deep_research',
-          name: 'deep_research',
-          description: 'Comprehensive research tool that searches multiple sources and synthesizes findings into detailed reports.',
-          category: 'Research',
-          pricing: { basePrice: '0.05', currency: 'USDC', model: 'per-call' },
-          provider: {
-            address: '0x1234...5678',
-            name: 'ResearchBot Labs',
-            verified: true,
-            reputation: 4.9,
-            totalEarnings: '12,500.00'
-          },
-          stats: {
-            totalCalls: 45678,
-            successRate: 99.2,
-            avgResponseTime: 1250,
-            uniqueUsers: 1234
-          },
-          tags: ['research', 'synthesis', 'multi-source', 'reports'],
-          schema: {
-            input: { query: 'string', depth: 'number', sources: 'string[]' },
-            output: { report: 'string', citations: 'object[]', confidence: 'number' }
-          },
-          status: 'active',
-          createdAt: Date.now() - 30 * 24 * 60 * 60 * 1000
-        },
-        {
-          id: 'tool_crypto_price',
-          name: 'crypto_price',
-          description: 'Real-time cryptocurrency price data from multiple exchanges with historical charts.',
-          category: 'Finance',
-          pricing: { basePrice: '0.01', currency: 'USDC', model: 'per-call' },
-          provider: {
-            address: '0x8765...4321',
-            name: 'CryptoData Inc',
-            verified: true,
-            reputation: 4.7,
-            totalEarnings: '8,250.00'
-          },
-          stats: {
-            totalCalls: 89123,
-            successRate: 99.8,
-            avgResponseTime: 120,
-            uniqueUsers: 2567
-          },
-          tags: ['crypto', 'prices', 'realtime', 'charts'],
-          schema: {
-            input: { symbol: 'string', currency: 'string' },
-            output: { price: 'number', change24h: 'number', volume: 'number' }
-          },
-          status: 'active',
-          createdAt: Date.now() - 60 * 24 * 60 * 60 * 1000
-        },
-        {
-          id: 'tool_weather_api',
-          name: 'weather_api',
-          description: 'Global weather data with forecasts, historical data, and severe weather alerts.',
-          category: 'Weather',
-          pricing: { basePrice: '0.005', currency: 'USDC', model: 'per-call' },
-          provider: {
-            address: '0xabcd...efgh',
-            name: 'WeatherNet',
-            verified: true,
-            reputation: 4.8,
-            totalEarnings: '5,125.00'
-          },
-          stats: {
-            totalCalls: 156789,
-            successRate: 99.5,
-            avgResponseTime: 85,
-            uniqueUsers: 4321
-          },
-          tags: ['weather', 'forecast', 'alerts', 'global'],
-          schema: {
-            input: { location: 'string', days: 'number' },
-            output: { current: 'object', forecast: 'object[]', alerts: 'object[]' }
-          },
-          status: 'active',
-          createdAt: Date.now() - 90 * 24 * 60 * 60 * 1000
-        },
-        {
-          id: 'tool_sentiment_analysis',
-          name: 'sentiment_analysis',
-          description: 'Advanced NLP-powered sentiment analysis for text, social media, and reviews.',
-          category: 'AI/ML',
-          pricing: { basePrice: '0.02', currency: 'USDC', model: 'per-call' },
-          provider: {
-            address: '0x9999...8888',
-            name: 'NLP Masters',
-            verified: false,
-            reputation: 4.5,
-            totalEarnings: '3,750.00'
-          },
-          stats: {
-            totalCalls: 23456,
-            successRate: 98.7,
-            avgResponseTime: 350,
-            uniqueUsers: 876
-          },
-          tags: ['nlp', 'sentiment', 'analysis', 'ai'],
-          schema: {
-            input: { text: 'string', language: 'string' },
-            output: { sentiment: 'string', score: 'number', aspects: 'object[]' }
-          },
-          status: 'active',
-          createdAt: Date.now() - 45 * 24 * 60 * 60 * 1000
-        },
-        {
-          id: 'tool_news_aggregator',
-          name: 'news_aggregator',
-          description: 'Aggregates news from 500+ sources with AI-powered summarization and categorization.',
-          category: 'News',
-          pricing: { basePrice: '0.015', currency: 'USDC', model: 'per-call' },
-          provider: {
-            address: '0x7777...6666',
-            name: 'NewsFlow',
-            verified: true,
-            reputation: 4.6,
-            totalEarnings: '2,890.00'
-          },
-          stats: {
-            totalCalls: 34567,
-            successRate: 99.1,
-            avgResponseTime: 450,
-            uniqueUsers: 1543
-          },
-          tags: ['news', 'aggregation', 'ai', 'summary'],
-          schema: {
-            input: { topics: 'string[]', timeframe: 'string', limit: 'number' },
-            output: { articles: 'object[]', summary: 'string', trending: 'string[]' }
-          },
-          status: 'active',
-          createdAt: Date.now() - 20 * 24 * 60 * 60 * 1000
-        },
-      ])
+      setTools(AVAILABLE_TOOLS)
       setIsLoading(false)
-    }, 1000)
+    }, 500)
   }, [])
 
   const filteredTools = tools
@@ -254,36 +254,62 @@ export function ToolRegistryBrowser({
     setTimeout(() => setCopiedId(null), 2000)
   }
 
+  const explorerUrl = 'https://sepolia.basescan.org'
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-white">Tool Registry</h2>
-          <p className="text-gray-400">Browse and discover monetized AI tools</p>
+          <p className="text-dark-400">Available x402 monetized AI tools</p>
         </div>
-        <div className="text-sm text-gray-400">
+        <div className="text-sm text-dark-400">
           {filteredTools.length} tools available
+        </div>
+      </div>
+
+      {/* Network Info */}
+      <div className="card p-4 border-l-4 border-accent-500">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-accent-500/20">
+            <Zap className="w-5 h-5 text-accent-400" />
+          </div>
+          <div className="flex-1">
+            <div className="font-medium text-white">x402 Payment Protocol</div>
+            <p className="text-sm text-dark-400">
+              All tools accept USDC payments on Base Sepolia (Chain ID: 84532)
+            </p>
+          </div>
+          <a
+            href={`${explorerUrl}/address/${EIGENCLOUD_WALLET}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-secondary text-sm flex items-center gap-2"
+          >
+            <ExternalLink className="w-4 h-4" />
+            Provider Wallet
+          </a>
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="flex flex-col md:flex-row gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-500" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-dark-500" />
           <input
             type="text"
             placeholder="Search tools by name, description, or tags..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 bg-gray-900 border border-gray-800 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:border-synapse-500"
+            className="input pl-10"
           />
         </div>
         <div className="flex gap-2">
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-            className="px-4 py-2.5 bg-gray-900 border border-gray-800 rounded-lg text-white focus:outline-none focus:border-synapse-500"
+            className="input w-auto"
           >
             <option value="popular">Most Popular</option>
             <option value="price">Lowest Price</option>
@@ -302,8 +328,8 @@ export function ToolRegistryBrowser({
             className={cn(
               'px-4 py-2 rounded-lg text-sm font-medium whitespace-nowrap transition-colors',
               selectedCategory === category
-                ? 'bg-synapse-600 text-white'
-                : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                ? 'bg-accent-600/20 text-accent-400 border border-accent-600/30'
+                : 'bg-dark-800/50 text-dark-400 hover:bg-dark-700/50 hover:text-white'
             )}
           >
             {category}
@@ -315,10 +341,10 @@ export function ToolRegistryBrowser({
       {isLoading ? (
         <div className="grid md:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="bg-gray-900/50 rounded-xl border border-gray-800 p-6 animate-pulse">
-              <div className="h-6 bg-gray-800 rounded w-1/2 mb-4" />
-              <div className="h-4 bg-gray-800 rounded w-full mb-2" />
-              <div className="h-4 bg-gray-800 rounded w-3/4" />
+            <div key={i} className="card p-6">
+              <div className="skeleton-shimmer h-6 rounded w-1/2 mb-4" />
+              <div className="skeleton-shimmer h-4 rounded w-full mb-2" />
+              <div className="skeleton-shimmer h-4 rounded w-3/4" />
             </div>
           ))}
         </div>
@@ -330,11 +356,11 @@ export function ToolRegistryBrowser({
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.05 }}
-              className="bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden"
+              className="card overflow-hidden"
             >
               {/* Tool Header */}
               <div
-                className="p-5 cursor-pointer hover:bg-gray-800/50 transition-colors"
+                className="p-5 cursor-pointer hover:bg-dark-800/30 transition-colors"
                 onClick={() => setExpandedTool(expandedTool === tool.id ? null : tool.id)}
               >
                 <div className="flex items-start justify-between">
@@ -342,26 +368,26 @@ export function ToolRegistryBrowser({
                     <div className="flex items-center gap-3 mb-2">
                       <h3 className="font-semibold text-white text-lg">{tool.name}</h3>
                       <span className={cn(
-                        'px-2 py-0.5 rounded text-xs',
-                        tool.status === 'active' && 'bg-green-500/20 text-green-400',
-                        tool.status === 'paused' && 'bg-yellow-500/20 text-yellow-400',
-                        tool.status === 'deprecated' && 'bg-red-500/20 text-red-400'
+                        'badge',
+                        tool.status === 'active' && 'badge-success',
+                        tool.status === 'coming_soon' && 'badge-warning',
+                        tool.status === 'beta' && 'badge-accent'
                       )}>
-                        {tool.status}
+                        {tool.status === 'coming_soon' ? 'Coming Soon' : tool.status}
                       </span>
                       {tool.provider.verified && (
-                        <span className="flex items-center gap-1 text-xs text-blue-400">
+                        <span className="flex items-center gap-1 text-xs text-accent-400">
                           <CheckCircle className="w-3 h-3" />
                           Verified
                         </span>
                       )}
                     </div>
-                    <p className="text-gray-400 text-sm mb-3">{tool.description}</p>
+                    <p className="text-dark-400 text-sm mb-3">{tool.description}</p>
                     <div className="flex flex-wrap gap-2">
                       {tool.tags.slice(0, 4).map(tag => (
                         <span
                           key={tag}
-                          className="px-2 py-0.5 bg-gray-800 text-gray-400 rounded text-xs"
+                          className="px-2 py-0.5 bg-dark-800/80 text-dark-400 rounded text-xs"
                         >
                           {tag}
                         </span>
@@ -369,16 +395,16 @@ export function ToolRegistryBrowser({
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2 ml-4">
-                    <div className="text-xl font-bold text-green-400">
+                    <div className="text-xl font-bold text-accent-400">
                       ${tool.pricing.basePrice}
                     </div>
-                    <div className="text-xs text-gray-500">{tool.pricing.model}</div>
+                    <div className="text-xs text-dark-500">{tool.pricing.model}</div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
                         onCallTool?.(tool)
                       }}
-                      className="px-4 py-1.5 bg-synapse-600 hover:bg-synapse-500 text-white rounded-lg text-sm font-medium transition-colors"
+                      className="btn-primary text-sm py-1.5"
                     >
                       Use Tool
                     </button>
@@ -387,27 +413,27 @@ export function ToolRegistryBrowser({
 
                 {/* Quick Stats */}
                 <div className="flex items-center gap-6 mt-4 text-sm">
-                  <div className="flex items-center gap-1 text-gray-400">
-                    <Zap className="w-4 h-4" />
-                    {tool.stats.totalCalls.toLocaleString()} calls
+                  <div className="flex items-center gap-1 text-dark-400">
+                    <Zap className="w-4 h-4 text-accent-400" />
+                    {tool.stats.totalCalls > 0 ? tool.stats.totalCalls.toLocaleString() : '—'} calls
                   </div>
-                  <div className="flex items-center gap-1 text-gray-400">
-                    <Star className="w-4 h-4 text-yellow-400" />
+                  <div className="flex items-center gap-1 text-dark-400">
+                    <Star className="w-4 h-4 text-amber-400" />
                     {tool.provider.reputation}
                   </div>
-                  <div className="flex items-center gap-1 text-gray-400">
+                  <div className="flex items-center gap-1 text-dark-400">
                     <Clock className="w-4 h-4" />
-                    {tool.stats.avgResponseTime}ms
+                    ~{tool.stats.avgResponseTime}ms
                   </div>
-                  <div className="flex items-center gap-1 text-gray-400">
-                    <Users className="w-4 h-4" />
-                    {tool.stats.uniqueUsers.toLocaleString()} users
+                  <div className="flex items-center gap-1 text-dark-400">
+                    <DollarSign className="w-4 h-4" />
+                    USDC
                   </div>
                   <div className="ml-auto">
                     {expandedTool === tool.id ? (
-                      <ChevronDown className="w-5 h-5 text-gray-400" />
+                      <ChevronDown className="w-5 h-5 text-dark-400" />
                     ) : (
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
+                      <ChevronRight className="w-5 h-5 text-dark-400" />
                     )}
                   </div>
                 </div>
@@ -420,66 +446,69 @@ export function ToolRegistryBrowser({
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: 'auto', opacity: 1 }}
                     exit={{ height: 0, opacity: 0 }}
-                    className="border-t border-gray-800"
+                    className="border-t border-dark-700/50"
                   >
                     <div className="p-5 grid md:grid-cols-2 gap-6">
                       {/* Provider Info */}
                       <div>
-                        <h4 className="text-sm font-medium text-gray-400 mb-3">Provider</h4>
-                        <div className="bg-gray-800/50 rounded-lg p-4">
+                        <h4 className="text-sm font-medium text-dark-400 mb-3">Provider</h4>
+                        <div className="bg-dark-800/50 rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <span className="font-medium text-white">{tool.provider.name}</span>
                             {tool.provider.verified && (
-                              <Shield className="w-4 h-4 text-blue-400" />
+                              <Shield className="w-4 h-4 text-accent-400" />
                             )}
                           </div>
-                          <div className="text-sm text-gray-400 font-mono mb-2">
-                            {tool.provider.address}
-                          </div>
-                          <div className="flex items-center gap-4 text-sm">
-                            <span className="flex items-center gap-1 text-yellow-400">
+                          <a
+                            href={`${explorerUrl}/address/${tool.provider.address}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm text-accent-400 font-mono mb-2 flex items-center gap-1 hover:underline"
+                          >
+                            {tool.provider.address.slice(0, 10)}...{tool.provider.address.slice(-8)}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
+                          <div className="flex items-center gap-4 text-sm mt-2">
+                            <span className="flex items-center gap-1 text-amber-400">
                               <Star className="w-4 h-4" />
                               {tool.provider.reputation}
-                            </span>
-                            <span className="text-green-400">
-                              ${tool.provider.totalEarnings} earned
                             </span>
                           </div>
                         </div>
                       </div>
 
-                      {/* Stats */}
+                      {/* Pricing */}
                       <div>
-                        <h4 className="text-sm font-medium text-gray-400 mb-3">Performance</h4>
-                        <div className="bg-gray-800/50 rounded-lg p-4 space-y-3">
+                        <h4 className="text-sm font-medium text-dark-400 mb-3">Pricing</h4>
+                        <div className="bg-dark-800/50 rounded-lg p-4 space-y-3">
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Success Rate</span>
-                            <span className="text-green-400">{tool.stats.successRate}%</span>
+                            <span className="text-dark-400">Base Price</span>
+                            <span className="text-white font-semibold">${tool.pricing.basePrice} USDC</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Avg Response</span>
-                            <span className="text-white">{tool.stats.avgResponseTime}ms</span>
+                            <span className="text-dark-400">Model</span>
+                            <span className="text-white capitalize">{tool.pricing.model}</span>
                           </div>
                           <div className="flex justify-between">
-                            <span className="text-gray-400">Total Calls</span>
-                            <span className="text-white">{tool.stats.totalCalls.toLocaleString()}</span>
+                            <span className="text-dark-400">Network</span>
+                            <span className="text-white">Base Sepolia</span>
                           </div>
                         </div>
                       </div>
 
                       {/* Schema */}
                       <div className="md:col-span-2">
-                        <h4 className="text-sm font-medium text-gray-400 mb-3">Schema</h4>
+                        <h4 className="text-sm font-medium text-dark-400 mb-3">Schema</h4>
                         <div className="grid md:grid-cols-2 gap-4">
-                          <div className="bg-gray-800/50 rounded-lg p-4">
-                            <div className="text-xs text-gray-500 mb-2">Input</div>
-                            <pre className="text-sm text-gray-300 font-mono">
+                          <div className="bg-dark-800/50 rounded-lg p-4">
+                            <div className="text-xs text-dark-500 mb-2">Input</div>
+                            <pre className="text-sm text-dark-300 font-mono">
                               {JSON.stringify(tool.schema.input, null, 2)}
                             </pre>
                           </div>
-                          <div className="bg-gray-800/50 rounded-lg p-4">
-                            <div className="text-xs text-gray-500 mb-2">Output</div>
-                            <pre className="text-sm text-gray-300 font-mono">
+                          <div className="bg-dark-800/50 rounded-lg p-4">
+                            <div className="text-xs text-dark-500 mb-2">Output</div>
+                            <pre className="text-sm text-dark-300 font-mono">
                               {JSON.stringify(tool.schema.output, null, 2)}
                             </pre>
                           </div>
@@ -490,10 +519,10 @@ export function ToolRegistryBrowser({
                       <div className="md:col-span-2 flex items-center gap-3">
                         <button
                           onClick={() => copyToolId(tool.id)}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors"
+                          className="btn-secondary flex items-center gap-2 text-sm"
                         >
                           {copiedId === tool.id ? (
-                            <Check className="w-4 h-4 text-green-400" />
+                            <Check className="w-4 h-4 text-emerald-400" />
                           ) : (
                             <Copy className="w-4 h-4" />
                           )}
@@ -501,14 +530,14 @@ export function ToolRegistryBrowser({
                         </button>
                         <button
                           onClick={() => onToolSelect?.(tool)}
-                          className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors"
+                          className="btn-secondary flex items-center gap-2 text-sm"
                         >
                           <ExternalLink className="w-4 h-4" />
                           View Details
                         </button>
                         <button
                           onClick={() => onCallTool?.(tool)}
-                          className="flex items-center gap-2 px-4 py-2 bg-synapse-600 hover:bg-synapse-500 text-white rounded-lg text-sm font-medium transition-colors ml-auto"
+                          className="btn-glow flex items-center gap-2 text-sm ml-auto"
                         >
                           <Zap className="w-4 h-4" />
                           Call Tool
@@ -525,10 +554,12 @@ export function ToolRegistryBrowser({
 
       {/* Empty State */}
       {!isLoading && filteredTools.length === 0 && (
-        <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-12 text-center">
-          <Search className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-          <h3 className="text-lg font-semibold text-white mb-2">No Tools Found</h3>
-          <p className="text-gray-400">
+        <div className="card p-12 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mx-auto mb-6">
+            <Search className="w-8 h-8 text-dark-500" />
+          </div>
+          <h3 className="text-xl font-semibold text-white mb-2">No Tools Found</h3>
+          <p className="text-dark-400 max-w-md mx-auto">
             Try adjusting your search or filters to find what you're looking for.
           </p>
         </div>

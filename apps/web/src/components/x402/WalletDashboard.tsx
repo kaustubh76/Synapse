@@ -1,32 +1,27 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import {
   Wallet, ArrowUpRight, ArrowDownLeft, Copy, Check,
-  TrendingUp, Shield, RefreshCw, ExternalLink
+  TrendingUp, Shield, RefreshCw, ExternalLink, Send
 } from 'lucide-react'
-import { cn, formatUSD, truncateAddress } from '@/lib/utils'
+import { cn, truncateAddress } from '@/lib/utils'
 
-interface WalletStats {
-  address: string
-  balance: {
-    total: string
-    available: string
-    locked: string
+interface WalletBalance {
+  native: {
+    symbol: string
+    balance: string
+    balanceFormatted: string
+    usdValue: string
   }
-  earnings: {
-    total: string
-    today: string
-    thisWeek: string
+  usdc: {
+    symbol: string
+    balance: string
+    balanceFormatted: string
+    usdValue: string
+    address: string
   }
-  spending: {
-    total: string
-    today: string
-    thisWeek: string
-  }
-  transactionCount: number
-  network: string
 }
 
 interface Transaction {
@@ -46,93 +41,146 @@ interface WalletDashboardProps {
   onConnect?: () => void
 }
 
+// Real wallet address from environment
+const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
+const RPC_URL = 'https://sepolia.base.org'
+const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+
 export function WalletDashboard({
   walletAddress,
   network = 'base-sepolia',
   onConnect
 }: WalletDashboardProps) {
-  const [stats, setStats] = useState<WalletStats | null>(null)
+  const [balances, setBalances] = useState<WalletBalance | null>(null)
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [copied, setCopied] = useState(false)
   const [activeTab, setActiveTab] = useState<'all' | 'earnings' | 'spending'>('all')
+  const [error, setError] = useState<string | null>(null)
 
-  // Demo data for visualization
-  useEffect(() => {
-    if (walletAddress) {
-      setIsLoading(true)
-      // Simulate API call
-      setTimeout(() => {
-        setStats({
-          address: walletAddress,
-          balance: {
-            total: '125.50',
-            available: '120.00',
-            locked: '5.50',
-          },
-          earnings: {
-            total: '85.25',
-            today: '12.50',
-            thisWeek: '45.75',
-          },
-          spending: {
-            total: '35.25',
-            today: '2.50',
-            thisWeek: '15.00',
-          },
-          transactionCount: 156,
-          network,
+  // Fetch real balances from blockchain
+  const fetchBalances = useCallback(async (address: string) => {
+    try {
+      // Fetch ETH balance via RPC
+      const ethResponse = await fetch(RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_getBalance',
+          params: [address, 'latest'],
+          id: 1
         })
-        setTransactions([
-          {
-            id: 'tx_1',
-            type: 'earning',
-            amount: '0.05',
-            tool: 'deep_research',
-            counterparty: '0x1234...5678',
-            timestamp: Date.now() - 60000,
-            status: 'completed',
-            txHash: '0xabc...def',
-          },
-          {
-            id: 'tx_2',
-            type: 'spending',
-            amount: '0.01',
-            tool: 'weather_api',
-            counterparty: '0x8765...4321',
-            timestamp: Date.now() - 120000,
-            status: 'completed',
-            txHash: '0xdef...abc',
-          },
-          {
-            id: 'tx_3',
-            type: 'earning',
-            amount: '0.10',
-            tool: 'analysis',
-            counterparty: '0xabcd...efgh',
-            timestamp: Date.now() - 180000,
-            status: 'completed',
-          },
-          {
-            id: 'tx_4',
-            type: 'spending',
-            amount: '0.02',
-            tool: 'crypto_price',
-            counterparty: '0x9999...8888',
-            timestamp: Date.now() - 240000,
-            status: 'pending',
-          },
-        ])
-        setIsLoading(false)
-      }, 1000)
+      })
+      const ethData = await ethResponse.json()
+      const ethBalance = ethData.result ? BigInt(ethData.result) : BigInt(0)
+      const ethFormatted = (Number(ethBalance) / 1e18).toFixed(4)
+
+      // Fetch USDC balance via RPC (balanceOf call)
+      const balanceOfData = '0x70a08231000000000000000000000000' + address.slice(2).toLowerCase()
+      const usdcResponse = await fetch(RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'eth_call',
+          params: [{ to: USDC_ADDRESS, data: balanceOfData }, 'latest'],
+          id: 2
+        })
+      })
+      const usdcData = await usdcResponse.json()
+      const usdcBalance = usdcData.result ? BigInt(usdcData.result) : BigInt(0)
+      const usdcFormatted = (Number(usdcBalance) / 1e6).toFixed(2)
+
+      setBalances({
+        native: {
+          symbol: 'ETH',
+          balance: ethBalance.toString(),
+          balanceFormatted: ethFormatted,
+          usdValue: (parseFloat(ethFormatted) * 2300).toFixed(2) // Approximate ETH price
+        },
+        usdc: {
+          symbol: 'USDC',
+          balance: usdcBalance.toString(),
+          balanceFormatted: usdcFormatted,
+          usdValue: usdcFormatted,
+          address: USDC_ADDRESS
+        }
+      })
+    } catch (err) {
+      console.error('Error fetching balances:', err)
+      setError('Failed to fetch balances')
     }
-  }, [walletAddress, network])
+  }, [])
+
+  // Fetch recent transactions from block explorer API
+  const fetchTransactions = useCallback(async (address: string) => {
+    try {
+      // For testnet, we'll show real recent activity
+      // In production, this would use an indexer or the BaseScan API
+      const response = await fetch(
+        `https://api-sepolia.basescan.org/api?module=account&action=txlist&address=${address}&startblock=0&endblock=99999999&page=1&offset=10&sort=desc`
+      )
+      const data = await response.json()
+
+      if (data.status === '1' && data.result) {
+        const txs: Transaction[] = data.result.slice(0, 5).map((tx: any, index: number) => ({
+          id: tx.hash,
+          type: tx.from.toLowerCase() === address.toLowerCase() ? 'spending' : 'earning',
+          amount: (parseFloat(tx.value) / 1e18).toFixed(6),
+          tool: 'ETH Transfer',
+          counterparty: tx.from.toLowerCase() === address.toLowerCase()
+            ? `${tx.to.slice(0, 6)}...${tx.to.slice(-4)}`
+            : `${tx.from.slice(0, 6)}...${tx.from.slice(-4)}`,
+          timestamp: parseInt(tx.timeStamp) * 1000,
+          status: tx.txreceipt_status === '1' ? 'completed' : 'failed',
+          txHash: tx.hash
+        }))
+        setTransactions(txs)
+      } else {
+        // If API fails or no results, show empty
+        setTransactions([])
+      }
+    } catch (err) {
+      console.error('Error fetching transactions:', err)
+      setTransactions([])
+    }
+  }, [])
+
+  useEffect(() => {
+    const address = walletAddress || EIGENCLOUD_WALLET
+    if (address) {
+      setIsLoading(true)
+      setError(null)
+
+      Promise.all([
+        fetchBalances(address),
+        fetchTransactions(address)
+      ]).finally(() => {
+        setIsLoading(false)
+      })
+    }
+  }, [walletAddress, fetchBalances, fetchTransactions])
 
   const copyAddress = () => {
-    if (walletAddress) {
-      navigator.clipboard.writeText(walletAddress)
+    const address = walletAddress || EIGENCLOUD_WALLET
+    if (address) {
+      navigator.clipboard.writeText(address)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
+    }
+  }
+
+  const refreshData = () => {
+    const address = walletAddress || EIGENCLOUD_WALLET
+    if (address) {
+      setIsLoading(true)
+      Promise.all([
+        fetchBalances(address),
+        fetchTransactions(address)
+      ]).finally(() => {
+        setIsLoading(false)
+      })
     }
   }
 
@@ -147,20 +195,40 @@ export function WalletDashboard({
     ? 'https://basescan.org'
     : 'https://sepolia.basescan.org'
 
-  if (!walletAddress) {
+  const displayAddress = walletAddress || EIGENCLOUD_WALLET
+
+  if (!displayAddress && !walletAddress) {
     return (
-      <div className="bg-gray-900/50 rounded-xl border border-gray-800 p-8 text-center">
-        <Wallet className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-        <h3 className="text-lg font-semibold text-white mb-2">Connect Your Wallet</h3>
-        <p className="text-gray-400 mb-6">
-          Connect your wallet to view your x402 payment dashboard
+      <div className="card p-12 text-center">
+        <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mx-auto mb-6">
+          <Wallet className="w-8 h-8 text-dark-500" />
+        </div>
+        <h3 className="text-xl font-semibold text-white mb-2">Connect Your Wallet</h3>
+        <p className="text-dark-400 mb-8 max-w-md mx-auto">
+          Connect your wallet to view your x402 payment dashboard and track your earnings
         </p>
-        <button
-          onClick={onConnect}
-          className="px-6 py-3 bg-synapse-600 hover:bg-synapse-500 text-white rounded-lg font-medium transition-colors"
-        >
+        <button onClick={onConnect} className="btn-glow">
           Connect Wallet
         </button>
+      </div>
+    )
+  }
+
+  if (isLoading && !balances) {
+    return (
+      <div className="space-y-6">
+        <div className="stat-card-accent p-8">
+          <div className="skeleton-shimmer h-8 w-48 rounded-lg mb-4" />
+          <div className="grid grid-cols-3 gap-8">
+            <div className="skeleton-shimmer h-20 rounded-lg" />
+            <div className="skeleton-shimmer h-20 rounded-lg" />
+            <div className="skeleton-shimmer h-20 rounded-lg" />
+          </div>
+        </div>
+        <div className="grid md:grid-cols-2 gap-4">
+          <div className="skeleton-shimmer h-48 rounded-xl" />
+          <div className="skeleton-shimmer h-48 rounded-xl" />
+        </div>
       </div>
     )
   }
@@ -168,151 +236,145 @@ export function WalletDashboard({
   return (
     <div className="space-y-6">
       {/* Wallet Header */}
-      <div className="bg-gradient-to-r from-synapse-900 to-purple-900 rounded-xl p-6 border border-synapse-700">
+      <div className="stat-card-accent p-6">
         <div className="flex items-start justify-between mb-6">
           <div>
             <div className="flex items-center gap-2 mb-2">
-              <Wallet className="w-5 h-5 text-synapse-400" />
-              <span className="text-sm text-synapse-300">Agent Wallet</span>
+              <Wallet className="w-5 h-5 text-accent-400" />
+              <span className="text-sm text-accent-300">EigenCloud Wallet</span>
             </div>
             <div className="flex items-center gap-3">
               <span className="font-mono text-lg text-white">
-                {truncateAddress(walletAddress)}
+                {truncateAddress(displayAddress)}
               </span>
               <button
                 onClick={copyAddress}
                 className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               >
                 {copied ? (
-                  <Check className="w-4 h-4 text-green-400" />
+                  <Check className="w-4 h-4 text-emerald-400" />
                 ) : (
                   <Copy className="w-4 h-4 text-white" />
                 )}
               </button>
               <a
-                href={`${explorerUrl}/address/${walletAddress}`}
+                href={`${explorerUrl}/address/${displayAddress}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
               >
                 <ExternalLink className="w-4 h-4 text-white" />
               </a>
+              <button
+                onClick={refreshData}
+                disabled={isLoading}
+                className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
+              >
+                <RefreshCw className={cn("w-4 h-4 text-white", isLoading && "animate-spin")} />
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10">
-            <Shield className="w-4 h-4 text-green-400" />
+            <Shield className="w-4 h-4 text-emerald-400" />
             <span className="text-sm text-white capitalize">{network}</span>
           </div>
         </div>
 
         {/* Balance Display */}
-        {stats && (
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <div className="text-sm text-synapse-300 mb-1">Total Balance</div>
-              <div className="text-3xl font-bold text-white">
-                ${stats.balance.total}
-              </div>
-              <div className="text-sm text-synapse-400">USDC</div>
+        <div className="grid grid-cols-3 gap-8">
+          <div>
+            <div className="text-sm text-accent-300/80 mb-1">USDC Balance</div>
+            <div className="text-3xl font-bold text-white">
+              ${balances?.usdc.balanceFormatted || '0.00'}
             </div>
-            <div>
-              <div className="text-sm text-synapse-300 mb-1">Available</div>
-              <div className="text-2xl font-bold text-green-400">
-                ${stats.balance.available}
-              </div>
-            </div>
-            <div>
-              <div className="text-sm text-synapse-300 mb-1">Locked</div>
-              <div className="text-2xl font-bold text-yellow-400">
-                ${stats.balance.locked}
-              </div>
-            </div>
+            <div className="text-sm text-accent-400 mt-1">USDC</div>
           </div>
-        )}
+          <div>
+            <div className="text-sm text-accent-300/80 mb-1">ETH Balance</div>
+            <div className="text-2xl font-bold text-emerald-400">
+              {balances?.native.balanceFormatted || '0.0000'}
+            </div>
+            <div className="text-sm text-dark-400 mt-1">ETH</div>
+          </div>
+          <div>
+            <div className="text-sm text-accent-300/80 mb-1">USD Value</div>
+            <div className="text-2xl font-bold text-amber-400">
+              ${((parseFloat(balances?.usdc.balanceFormatted || '0') + parseFloat(balances?.native.usdValue || '0'))).toFixed(2)}
+            </div>
+            <div className="text-sm text-dark-400 mt-1">Total</div>
+          </div>
+        </div>
       </div>
 
-      {/* Stats Cards */}
-      {stats && (
-        <div className="grid md:grid-cols-2 gap-4">
-          {/* Earnings Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="bg-gray-900/50 rounded-xl p-5 border border-gray-800"
+      {/* Quick Actions */}
+      <div className="grid md:grid-cols-2 gap-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="card p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-emerald-500/20">
+                <ArrowDownLeft className="w-5 h-5 text-emerald-400" />
+              </div>
+              <span className="font-medium text-white">Receive</span>
+            </div>
+          </div>
+          <p className="text-dark-400 text-sm mb-3">
+            Share your wallet address to receive payments
+          </p>
+          <button
+            onClick={copyAddress}
+            className="w-full btn-secondary text-sm py-2"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-green-500/20">
-                  <ArrowDownLeft className="w-5 h-5 text-green-400" />
-                </div>
-                <span className="font-medium text-white">Earnings</span>
-              </div>
-              <TrendingUp className="w-5 h-5 text-green-400" />
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Total Earned</span>
-                <span className="text-white font-semibold">${stats.earnings.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Today</span>
-                <span className="text-green-400 font-medium">+${stats.earnings.today}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">This Week</span>
-                <span className="text-green-400 font-medium">+${stats.earnings.thisWeek}</span>
-              </div>
-            </div>
-          </motion.div>
+            {copied ? 'Address Copied!' : 'Copy Address'}
+          </button>
+        </motion.div>
 
-          {/* Spending Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="bg-gray-900/50 rounded-xl p-5 border border-gray-800"
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="card p-5"
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <div className="p-2 rounded-lg bg-accent-500/20">
+                <Send className="w-5 h-5 text-accent-400" />
+              </div>
+              <span className="font-medium text-white">Send</span>
+            </div>
+          </div>
+          <p className="text-dark-400 text-sm mb-3">
+            Transfer tokens to another address
+          </p>
+          <a
+            href={`${explorerUrl}/address/${displayAddress}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full btn-secondary text-sm py-2 flex items-center justify-center gap-2"
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <div className="p-2 rounded-lg bg-blue-500/20">
-                  <ArrowUpRight className="w-5 h-5 text-blue-400" />
-                </div>
-                <span className="font-medium text-white">Spending</span>
-              </div>
-            </div>
-            <div className="space-y-3">
-              <div className="flex justify-between">
-                <span className="text-gray-400">Total Spent</span>
-                <span className="text-white font-semibold">${stats.spending.total}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">Today</span>
-                <span className="text-blue-400 font-medium">-${stats.spending.today}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-400">This Week</span>
-                <span className="text-blue-400 font-medium">-${stats.spending.thisWeek}</span>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )}
+            View on Explorer <ExternalLink className="w-3 h-3" />
+          </a>
+        </motion.div>
+      </div>
 
       {/* Recent Transactions */}
-      <div className="bg-gray-900/50 rounded-xl border border-gray-800">
-        <div className="p-4 border-b border-gray-800">
+      <div className="card overflow-hidden">
+        <div className="p-4 border-b border-dark-700/50">
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-white">Recent Transactions</h3>
-            <div className="flex gap-1">
+            <div className="flex gap-1 p-1 bg-dark-800/50 rounded-lg">
               {(['all', 'earnings', 'spending'] as const).map(tab => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    'px-3 py-1 rounded-lg text-sm transition-colors capitalize',
+                    'px-3 py-1.5 rounded-md text-sm transition-colors capitalize',
                     activeTab === tab
-                      ? 'bg-synapse-600 text-white'
-                      : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                      ? 'bg-accent-600/20 text-accent-400'
+                      : 'text-dark-400 hover:text-white'
                   )}
                 >
                   {tab}
@@ -322,15 +384,23 @@ export function WalletDashboard({
           </div>
         </div>
 
-        <div className="divide-y divide-gray-800">
+        <div className="divide-y divide-dark-800/50">
           {isLoading ? (
             <div className="p-8 text-center">
-              <RefreshCw className="w-6 h-6 text-gray-600 animate-spin mx-auto mb-2" />
-              <p className="text-gray-400">Loading transactions...</p>
+              <RefreshCw className="w-6 h-6 text-dark-500 animate-spin mx-auto mb-2" />
+              <p className="text-dark-400">Loading transactions...</p>
             </div>
           ) : filteredTransactions.length === 0 ? (
             <div className="p-8 text-center">
-              <p className="text-gray-400">No transactions found</p>
+              <p className="text-dark-400">No transactions found</p>
+              <a
+                href={`${explorerUrl}/address/${displayAddress}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-400 text-sm mt-2 inline-flex items-center gap-1 hover:underline"
+              >
+                View all on Explorer <ExternalLink className="w-3 h-3" />
+              </a>
             </div>
           ) : (
             filteredTransactions.map((tx, index) => (
@@ -339,33 +409,33 @@ export function WalletDashboard({
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: index * 0.05 }}
-                className="p-4 hover:bg-gray-800/50 transition-colors"
+                className="p-4 hover:bg-dark-800/30 transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className={cn(
                       'p-2 rounded-lg',
-                      tx.type === 'earning' ? 'bg-green-500/20' : 'bg-blue-500/20'
+                      tx.type === 'earning' ? 'bg-emerald-500/20' : 'bg-accent-500/20'
                     )}>
                       {tx.type === 'earning' ? (
-                        <ArrowDownLeft className="w-4 h-4 text-green-400" />
+                        <ArrowDownLeft className="w-4 h-4 text-emerald-400" />
                       ) : (
-                        <ArrowUpRight className="w-4 h-4 text-blue-400" />
+                        <ArrowUpRight className="w-4 h-4 text-accent-400" />
                       )}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-white">{tx.tool}</span>
                         <span className={cn(
-                          'px-2 py-0.5 rounded text-xs',
-                          tx.status === 'completed' && 'bg-green-500/20 text-green-400',
-                          tx.status === 'pending' && 'bg-yellow-500/20 text-yellow-400',
-                          tx.status === 'failed' && 'bg-red-500/20 text-red-400'
+                          'badge text-xs',
+                          tx.status === 'completed' && 'badge-success',
+                          tx.status === 'pending' && 'badge-warning',
+                          tx.status === 'failed' && 'badge-error'
                         )}>
                           {tx.status}
                         </span>
                       </div>
-                      <div className="text-sm text-gray-400">
+                      <div className="text-sm text-dark-500">
                         {tx.type === 'earning' ? 'From' : 'To'}: {tx.counterparty}
                       </div>
                     </div>
@@ -373,25 +443,25 @@ export function WalletDashboard({
                   <div className="text-right">
                     <div className={cn(
                       'font-semibold',
-                      tx.type === 'earning' ? 'text-green-400' : 'text-blue-400'
+                      tx.type === 'earning' ? 'text-emerald-400' : 'text-accent-400'
                     )}>
-                      {tx.type === 'earning' ? '+' : '-'}${tx.amount}
+                      {tx.type === 'earning' ? '+' : '-'}{tx.amount} ETH
                     </div>
-                    <div className="text-sm text-gray-500">
-                      {new Date(tx.timestamp).toLocaleTimeString()}
+                    <div className="text-sm text-dark-500">
+                      {new Date(tx.timestamp).toLocaleDateString()}
                     </div>
                   </div>
                 </div>
                 {tx.txHash && (
                   <div className="mt-2 flex items-center gap-2 text-sm">
-                    <span className="text-gray-500">TX:</span>
+                    <span className="text-dark-500">TX:</span>
                     <a
                       href={`${explorerUrl}/tx/${tx.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-synapse-400 hover:text-synapse-300 flex items-center gap-1"
+                      className="text-accent-400 hover:text-accent-300 flex items-center gap-1 font-mono text-xs"
                     >
-                      {tx.txHash}
+                      {tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
                       <ExternalLink className="w-3 h-3" />
                     </a>
                   </div>
@@ -401,6 +471,10 @@ export function WalletDashboard({
           )}
         </div>
       </div>
+
+      {error && (
+        <div className="text-red-400 text-sm text-center">{error}</div>
+      )}
     </div>
   )
 }

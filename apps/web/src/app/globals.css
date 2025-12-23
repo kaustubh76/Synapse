@@ -2,98 +2,520 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ============================================================
+   SYNAPSE DARK THEME
+   Primary Accent: Cyan (#06b6d4)
+   ============================================================ */
+
 :root {
-  --foreground-rgb: 255, 255, 255;
-  --background-start-rgb: 10, 10, 20;
-  --background-end-rgb: 20, 20, 40;
+  /* Core colors */
+  --color-accent: 6 182 212;
+  --color-accent-light: 34 211 238;
+  --color-accent-dark: 14 116 144;
+
+  /* Background */
+  --bg-primary: 2 6 23;
+  --bg-secondary: 15 23 42;
+  --bg-tertiary: 30 41 59;
+
+  /* Text */
+  --text-primary: 248 250 252;
+  --text-secondary: 148 163 184;
+  --text-muted: 100 116 139;
+
+  /* Borders */
+  --border-primary: 51 65 85;
+  --border-secondary: 71 85 105;
+}
+
+/* Base styles */
+html {
+  scroll-behavior: smooth;
 }
 
 body {
-  color: rgb(var(--foreground-rgb));
-  background: linear-gradient(
-    135deg,
-    rgb(var(--background-start-rgb)),
-    rgb(var(--background-end-rgb))
-  );
+  color: rgb(var(--text-primary));
+  background: rgb(var(--bg-primary));
   min-height: 100vh;
+  font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
 }
 
-/* Neural network background effect */
-.neural-bg {
+/* ============================================================
+   BACKGROUND EFFECTS
+   ============================================================ */
+
+/* Gradient mesh background */
+.bg-mesh {
   background-image:
-    radial-gradient(circle at 25% 25%, rgba(14, 165, 233, 0.1) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(168, 85, 247, 0.1) 0%, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(6, 182, 212, 0.08) 0px, transparent 50%),
+    radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.04) 0px, transparent 80%);
 }
 
-/* Glowing borders */
+/* Subtle grid pattern */
+.bg-grid {
+  background-image:
+    linear-gradient(rgba(6, 182, 212, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(6, 182, 212, 0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Noise texture overlay */
+.bg-noise {
+  position: relative;
+}
+.bg-noise::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+  opacity: 0.015;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ============================================================
+   GLASS MORPHISM
+   ============================================================ */
+
+.glass {
+  background: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(51, 65, 85, 0.4);
+}
+
+.glass-dark {
+  background: rgba(2, 6, 23, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(51, 65, 85, 0.3);
+}
+
+.glass-accent {
+  background: rgba(6, 182, 212, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(6, 182, 212, 0.2);
+}
+
+/* ============================================================
+   CARDS & SURFACES
+   ============================================================ */
+
+.card {
+  @apply bg-dark-900/60 border border-dark-700/50 rounded-xl;
+  backdrop-filter: blur(8px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card:hover {
+  @apply border-dark-600/60;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.card-glow {
+  @apply card;
+}
+
+.card-glow:hover {
+  @apply border-accent-600/40;
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.3),
+    0 0 20px rgba(6, 182, 212, 0.1);
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+
+.btn {
+  @apply px-4 py-2 rounded-lg font-medium transition-all duration-200;
+  @apply focus:outline-none focus:ring-2 focus:ring-accent-500/50 focus:ring-offset-2 focus:ring-offset-dark-900;
+}
+
+.btn-primary {
+  @apply btn bg-accent-600 text-white;
+  @apply hover:bg-accent-500;
+  @apply active:bg-accent-700;
+}
+
+.btn-secondary {
+  @apply btn bg-dark-800 text-dark-200 border border-dark-700;
+  @apply hover:bg-dark-700 hover:border-dark-600;
+  @apply active:bg-dark-800;
+}
+
+.btn-ghost {
+  @apply btn bg-transparent text-dark-300;
+  @apply hover:bg-dark-800/50 hover:text-white;
+}
+
+.btn-glow {
+  @apply btn-primary;
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+.btn-glow:hover {
+  box-shadow: 0 0 30px rgba(6, 182, 212, 0.5);
+}
+
+/* ============================================================
+   INPUTS
+   ============================================================ */
+
+.input {
+  @apply w-full px-4 py-2.5 rounded-lg;
+  @apply bg-dark-900/80 border border-dark-700/60 text-white;
+  @apply placeholder-dark-500;
+  @apply focus:outline-none focus:border-accent-600/60 focus:ring-1 focus:ring-accent-600/30;
+  @apply transition-all duration-200;
+}
+
+.input:hover:not(:focus) {
+  @apply border-dark-600;
+}
+
+/* ============================================================
+   TABS
+   ============================================================ */
+
+.tab {
+  @apply px-4 py-2.5 rounded-lg text-sm font-medium;
+  @apply text-dark-400 transition-all duration-200;
+}
+
+.tab:hover:not(.tab-active) {
+  @apply text-dark-200 bg-dark-800/50;
+}
+
+.tab-active {
+  @apply bg-accent-600/20 text-accent-400;
+  @apply border border-accent-600/30;
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+
+.badge {
+  @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+}
+
+.badge-accent {
+  @apply bg-accent-500/20 text-accent-400 border border-accent-500/30;
+}
+
+.badge-success {
+  @apply bg-emerald-500/20 text-emerald-400 border border-emerald-500/30;
+}
+
+.badge-warning {
+  @apply bg-amber-500/20 text-amber-400 border border-amber-500/30;
+}
+
+.badge-error {
+  @apply bg-red-500/20 text-red-400 border border-red-500/30;
+}
+
+.badge-info {
+  @apply bg-blue-500/20 text-blue-400 border border-blue-500/30;
+}
+
+/* ============================================================
+   GLOW EFFECTS
+   ============================================================ */
+
+.glow {
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+}
+
+.glow-sm {
+  box-shadow: 0 0 10px rgba(6, 182, 212, 0.2);
+}
+
+.glow-lg {
+  box-shadow: 0 0 40px rgba(6, 182, 212, 0.4);
+}
+
+.glow-text {
+  text-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+}
+
 .glow-border {
-  box-shadow: 0 0 20px rgba(14, 165, 233, 0.3);
+  box-shadow:
+    0 0 0 1px rgba(6, 182, 212, 0.3),
+    0 0 20px rgba(6, 182, 212, 0.2);
 }
 
-/* Animated gradient text */
+/* Animated glow */
+.glow-pulse {
+  animation: glow-pulse 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 20px rgba(6, 182, 212, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(6, 182, 212, 0.5);
+  }
+}
+
+/* ============================================================
+   GRADIENTS
+   ============================================================ */
+
 .gradient-text {
-  background: linear-gradient(90deg, #0ea5e9, #a855f7, #0ea5e9);
+  background: linear-gradient(135deg, #22d3ee 0%, #06b6d4 50%, #0891b2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-animated {
+  background: linear-gradient(90deg, #22d3ee, #06b6d4, #22d3ee);
   background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: gradient 3s linear infinite;
+  animation: gradient-shift 3s linear infinite;
 }
 
-@keyframes gradient {
+@keyframes gradient-shift {
   0% { background-position: 0% center; }
   100% { background-position: 200% center; }
 }
 
-/* Bid bar animation */
-.bid-bar {
-  transition: width 0.5s ease-out, background-color 0.3s ease;
+.gradient-border {
+  position: relative;
 }
 
-/* Pulse animation for live indicators */
-.live-pulse {
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.5), rgba(6, 182, 212, 0.1));
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(6, 182, 212, 0.4);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(6, 182, 212, 0.6);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(6, 182, 212, 0.4) rgba(15, 23, 42, 0.5);
+}
+
+/* ============================================================
+   STATUS INDICATORS
+   ============================================================ */
+
+.status-dot {
+  @apply w-2 h-2 rounded-full;
+}
+
+.status-dot-online {
+  @apply bg-emerald-400;
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+.status-dot-offline {
+  @apply bg-dark-500;
+}
+
+.status-dot-warning {
+  @apply bg-amber-400;
+  box-shadow: 0 0 8px rgba(251, 191, 36, 0.6);
+}
+
+.status-dot-error {
+  @apply bg-red-400;
+  box-shadow: 0 0 8px rgba(248, 113, 113, 0.6);
+}
+
+/* Live indicator pulse */
+.live-indicator {
+  position: relative;
+}
+
+.live-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  background: inherit;
+  opacity: 0;
   animation: live-pulse 2s ease-in-out infinite;
 }
 
 @keyframes live-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(1.1); }
+  0%, 100% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(1.5);
+  }
 }
 
-/* Card hover effects */
-.card-hover {
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+/* ============================================================
+   TRANSITIONS
+   ============================================================ */
+
+.transition-smooth {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.card-hover:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 40px rgba(14, 165, 233, 0.2);
+.transition-bounce {
+  transition: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
-/* Scrollbar styling */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+/* ============================================================
+   STAT CARDS
+   ============================================================ */
+
+.stat-card {
+  @apply relative overflow-hidden rounded-xl p-5;
+  @apply bg-dark-900/60 border border-dark-700/40;
+  backdrop-filter: blur(8px);
 }
 
-::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 4px;
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.3), transparent);
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(14, 165, 233, 0.5);
-  border-radius: 4px;
+.stat-card-accent {
+  @apply stat-card;
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.1) 0%, rgba(6, 182, 212, 0.02) 100%);
+  border-color: rgba(6, 182, 212, 0.2);
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(14, 165, 233, 0.7);
+/* ============================================================
+   DATA VISUALIZATION
+   ============================================================ */
+
+.chart-bar {
+  @apply rounded-t transition-all duration-500 ease-out;
+  background: linear-gradient(to top, rgba(6, 182, 212, 0.8), rgba(6, 182, 212, 0.4));
 }
 
-/* Status badges */
-.status-open { @apply bg-green-500/20 text-green-400 border-green-500/50; }
-.status-bidding { @apply bg-yellow-500/20 text-yellow-400 border-yellow-500/50; }
-.status-assigned { @apply bg-blue-500/20 text-blue-400 border-blue-500/50; }
-.status-executing { @apply bg-purple-500/20 text-purple-400 border-purple-500/50; }
-.status-completed { @apply bg-emerald-500/20 text-emerald-400 border-emerald-500/50; }
-.status-failed { @apply bg-red-500/20 text-red-400 border-red-500/50; }
+.chart-bar:hover {
+  background: linear-gradient(to top, rgba(6, 182, 212, 1), rgba(6, 182, 212, 0.6));
+  box-shadow: 0 0 20px rgba(6, 182, 212, 0.4);
+}
+
+.progress-bar {
+  @apply h-1.5 rounded-full bg-dark-800 overflow-hidden;
+}
+
+.progress-fill {
+  @apply h-full rounded-full;
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.6), rgba(6, 182, 212, 1));
+  transition: width 0.5s ease-out;
+}
+
+/* ============================================================
+   SKELETON LOADING
+   ============================================================ */
+
+.skeleton {
+  @apply bg-dark-800 rounded animate-pulse;
+}
+
+.skeleton-shimmer {
+  @apply relative overflow-hidden bg-dark-800 rounded;
+}
+
+.skeleton-shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(6, 182, 212, 0.05),
+    transparent
+  );
+  animation: shimmer 2s infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ============================================================
+   TOOLTIPS
+   ============================================================ */
+
+.tooltip {
+  @apply absolute z-50 px-3 py-1.5 text-sm rounded-lg;
+  @apply bg-dark-800 border border-dark-700 text-white;
+  @apply shadow-lg opacity-0 pointer-events-none;
+  @apply transition-opacity duration-200;
+}
+
+.tooltip-visible {
+  @apply opacity-100;
+}
+
+/* ============================================================
+   DIVIDERS
+   ============================================================ */
+
+.divider {
+  @apply h-px bg-dark-700/50;
+}
+
+.divider-glow {
+  @apply h-px;
+  background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.3), transparent);
+}
+
+.divider-vertical {
+  @apply w-px h-6 bg-dark-700/50;
+}
+
+/* ============================================================
+   UTILITY OVERRIDES
+   ============================================================ */
+
+/* Ensure accent color is consistent */
+.text-accent { @apply text-accent-400; }
+.bg-accent { @apply bg-accent-600; }
+.border-accent { @apply border-accent-600; }
