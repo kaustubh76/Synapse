@@ -8,7 +8,7 @@ import {
   ArrowLeft, RefreshCw, Wifi, WifiOff, Shield, Zap, BarChart3
 } from 'lucide-react'
 import { cn, formatUSD, truncateAddress } from '@/lib/utils'
-import { getProviders, getProviderStats } from '@/lib/api'
+import { getProviders, getProviderStats, getNetworkStats } from '@/lib/api'
 import { useSocket } from '@/hooks/useSocket'
 import { LiveActivityFeed } from '@/components/LiveActivityFeed'
 import { NetworkStats } from '@/components/NetworkStats'
@@ -211,9 +211,10 @@ export default function Dashboard() {
   const fetchData = async () => {
     setIsLoading(true)
     try {
-      const [providersRes, statsRes] = await Promise.all([
+      const [providersRes, statsRes, networkStatsRes] = await Promise.all([
         getProviders(),
-        getProviderStats()
+        getProviderStats(),
+        getNetworkStats()
       ])
 
       if (providersRes.success) {
@@ -221,11 +222,20 @@ export default function Dashboard() {
       }
       if (statsRes.success) {
         setStats(statsRes.data)
-        setNetworkStats((prev) => ({
-          ...prev,
-          providersOnline: statsRes.data.online,
-          providersTotal: statsRes.data.total,
-        }))
+      }
+      // Use the comprehensive network stats endpoint
+      if (networkStatsRes.success) {
+        setNetworkStats({
+          providersOnline: networkStatsRes.data.providersOnline,
+          providersTotal: networkStatsRes.data.providersTotal,
+          intentsPending: networkStatsRes.data.intentsPending,
+          intentsCompleted: networkStatsRes.data.intentsCompleted,
+          intentsFailed: networkStatsRes.data.intentsFailed,
+          totalVolume: networkStatsRes.data.totalVolume,
+          avgResponseTime: networkStatsRes.data.avgResponseTime,
+          avgSavings: networkStatsRes.data.avgSavings,
+          successRate: networkStatsRes.data.successRate,
+        })
       }
     } catch (error) {
       console.error('Error fetching data:', error)
