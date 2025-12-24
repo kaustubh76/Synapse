@@ -2,12 +2,13 @@
 
 import { useState, useEffect, useCallback, createContext, useContext } from 'react'
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'
 
 export interface WalletInfo {
   address: string
   chain: string
   type: 'custodial' | 'non-custodial' | 'demo'
+  walletId?: string // Crossmint wallet ID for API calls
   balances?: Record<string, string>
 }
 
@@ -71,29 +72,30 @@ export function useWallet(): WalletContextType {
     }
   }, [])
 
-  // Connect wallet (demo mode - creates a Crossmint custodial wallet via API)
+  // Connect wallet (creates a Crossmint MPC wallet via API)
   const connect = useCallback(async () => {
     setState(prev => ({ ...prev, isConnecting: true, error: null }))
 
     try {
-      // Try to create wallet via API (which uses Crossmint SDK)
+      // Create wallet via API (which uses Crossmint SDK)
       const clientId = `client_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
-      const response = await fetch(`${API_URL}/api/wallet/create`, {
+      const response = await fetch(`${API_URL}/api/wallet`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clientId }),
+        body: JSON.stringify({ linkedUser: clientId }),
       })
 
       let wallet: WalletInfo
 
       if (response.ok) {
         const data = await response.json()
-        if (data.success && data.data?.address) {
+        if (data.success && data.wallet?.address) {
           wallet = {
-            address: data.data.address,
-            chain: data.data.chain || 'base-sepolia',
+            address: data.wallet.address,
+            chain: data.wallet.chain || 'base-sepolia',
             type: 'custodial',
+            walletId: data.wallet.id, // Store wallet ID for balance/transfer calls
           }
         } else {
           // Fallback to demo wallet
@@ -119,7 +121,7 @@ export function useWallet(): WalletContextType {
         wallet,
         isConnected: true,
         isConnecting: false,
-        balance: '100.00', // Demo balance
+        balance: '0.00', // Start with 0, will be fetched from API
       }))
     } catch (error) {
       console.error('Wallet connection error:', error)
@@ -161,17 +163,24 @@ export function useWallet(): WalletContextType {
   const refreshBalance = useCallback(async () => {
     if (!state.wallet) return
 
+    // For demo wallets, just keep the existing balance
+    if (state.wallet.type === 'demo' || !state.wallet.walletId) {
+      return
+    }
+
     try {
       const response = await fetch(
-        `${API_URL}/api/wallet/${state.wallet.address}/balance`
+        `${API_URL}/api/wallet/balance?walletId=${state.wallet.walletId}`
       )
 
       if (response.ok) {
         const data = await response.json()
-        if (data.success) {
+        if (data.success && data.balances) {
+          // Get USDC balance as primary balance
+          const usdcBalance = data.balances.usdc?.balanceFormatted || '0.00'
           setState(prev => ({
             ...prev,
-            balance: data.data?.balance || '100.00',
+            balance: usdcBalance,
           }))
         }
       }
@@ -187,12 +196,22 @@ export function useWallet(): WalletContextType {
       return { txHash: '', success: false }
     }
 
+    // For demo wallets, simulate transfer
+    if (state.wallet.type === 'demo' || !state.wallet.walletId) {
+      const newBalance = (parseFloat(state.balance) - parseFloat(amount)).toFixed(2)
+      setState(prev => ({ ...prev, balance: newBalance }))
+      return {
+        txHash: `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`,
+        success: true,
+      }
+    }
+
     try {
       const response = await fetch(`${API_URL}/api/wallet/transfer`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          from: state.wallet.address,
+          walletId: state.wallet.walletId,
           to,
           amount,
           token: 'USDC',
@@ -202,30 +221,23 @@ export function useWallet(): WalletContextType {
       if (response.ok) {
         const data = await response.json()
         if (data.success) {
-          // Update balance after transfer
-          const newBalance = (parseFloat(state.balance) - parseFloat(amount)).toFixed(2)
-          setState(prev => ({ ...prev, balance: newBalance }))
+          // Refresh balance after transfer
+          await refreshBalance()
 
           return {
-            txHash: data.data?.txHash || `0x${Date.now().toString(16)}`,
+            txHash: data.transaction?.txHash || `0x${Date.now().toString(16)}`,
             success: true,
           }
         }
       }
 
-      // Demo mode fallback
-      const newBalance = (parseFloat(state.balance) - parseFloat(amount)).toFixed(2)
-      setState(prev => ({ ...prev, balance: newBalance }))
-
-      return {
-        txHash: `0x${Date.now().toString(16)}${Math.random().toString(16).slice(2, 10)}`,
-        success: true,
-      }
+      // Fallback for failed API call
+      return { txHash: '', success: false }
     } catch (error) {
       console.error('Transfer error:', error)
       return { txHash: '', success: false }
     }
-  }, [state.wallet, state.balance])
+  }, [state.wallet, state.balance, refreshBalance])
 
   // Auto-refresh balance periodically
   useEffect(() => {
