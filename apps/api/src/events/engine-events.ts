@@ -19,13 +19,20 @@ export function setupEngineEvents(
 ): void {
   // -------------------- INTENT EVENTS --------------------
 
-  // Intent created - broadcast to providers
+  // Intent created - broadcast to providers and dashboard
   intentEngine.on('intent:created', (intent: Intent) => {
     console.log(`[Event] Intent created: ${intent.id}`);
 
     // Broadcast to all providers
     io.to('providers').emit(WSEventType.NEW_INTENT_AVAILABLE, {
       type: WSEventType.NEW_INTENT_AVAILABLE,
+      payload: { intent },
+      timestamp: Date.now()
+    });
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('intent_created', {
+      type: 'intent_created',
       payload: { intent },
       timestamp: Date.now()
     });
@@ -74,6 +81,16 @@ export function setupEngineEvents(
       timestamp: Date.now()
     });
 
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('intent_completed', {
+      type: 'intent_completed',
+      payload: {
+        intent,
+        result: intent.result
+      },
+      timestamp: Date.now()
+    });
+
     // Update provider reputation
     if (intent.result && intent.assignedProvider) {
       const provider = providerRegistry.getProviderByAddress(intent.assignedProvider);
@@ -100,6 +117,16 @@ export function setupEngineEvents(
       },
       timestamp: Date.now()
     });
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('intent_failed', {
+      type: 'intent_failed',
+      payload: {
+        intent,
+        reason
+      },
+      timestamp: Date.now()
+    });
   });
 
   // -------------------- BID EVENTS --------------------
@@ -120,6 +147,18 @@ export function setupEngineEvents(
         totalBids: allBids.length,
         currentLeader: leader.providerAddress,
         allBids
+      },
+      timestamp: Date.now()
+    });
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('bid_received', {
+      type: 'bid_received',
+      payload: {
+        bid,
+        intent,
+        totalBids: allBids.length,
+        currentLeader: leader.providerAddress
       },
       timestamp: Date.now()
     });
@@ -168,6 +207,16 @@ export function setupEngineEvents(
       },
       timestamp: Date.now()
     });
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('winner_selected', {
+      type: 'winner_selected',
+      payload: {
+        winner: bid,
+        intent
+      },
+      timestamp: Date.now()
+    });
   });
 
   // -------------------- FAILOVER EVENTS --------------------
@@ -186,6 +235,17 @@ export function setupEngineEvents(
         newProvider,
         remainingFailovers: intent.failoverQueue.length,
         allBids
+      },
+      timestamp: Date.now()
+    });
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('failover_triggered', {
+      type: 'failover_triggered',
+      payload: {
+        intent,
+        failedProvider,
+        newProvider
       },
       timestamp: Date.now()
     });
@@ -213,6 +273,18 @@ export function setupEngineEvents(
       },
       timestamp: Date.now()
     });
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('payment_settled', {
+      type: 'payment_settled',
+      payload: {
+        intentId: intent.id,
+        provider: intent.assignedProvider,
+        amount,
+        transactionHash: txHash
+      },
+      timestamp: Date.now()
+    });
   });
 
   // -------------------- PROVIDER EVENTS --------------------
@@ -220,16 +292,58 @@ export function setupEngineEvents(
   // Provider online
   providerRegistry.on('provider:online', (provider) => {
     console.log(`[Event] Provider online: ${provider.name}`);
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('provider_connected', {
+      type: 'provider_connected',
+      payload: {
+        provider: {
+          id: provider.id,
+          name: provider.name,
+          address: provider.address,
+          capabilities: provider.capabilities
+        }
+      },
+      timestamp: Date.now()
+    });
   });
 
   // Provider offline
   providerRegistry.on('provider:offline', (provider) => {
     console.log(`[Event] Provider offline: ${provider.name}`);
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('provider_disconnected', {
+      type: 'provider_disconnected',
+      payload: {
+        provider: {
+          id: provider.id,
+          name: provider.name,
+          address: provider.address
+        }
+      },
+      timestamp: Date.now()
+    });
   });
 
   // Provider updated (reputation change, etc.)
   providerRegistry.on('provider:updated', (provider) => {
     console.log(`[Event] Provider updated: ${provider.name} - Rep: ${provider.reputationScore}`);
+
+    // Broadcast to dashboard clients
+    io.to('dashboard').emit('provider_updated', {
+      type: 'provider_updated',
+      payload: {
+        provider: {
+          id: provider.id,
+          name: provider.name,
+          reputationScore: provider.reputationScore,
+          totalJobs: provider.totalJobs,
+          successfulJobs: provider.successfulJobs
+        }
+      },
+      timestamp: Date.now()
+    });
   });
 
   console.log('Engine events connected to WebSocket broadcasting');
