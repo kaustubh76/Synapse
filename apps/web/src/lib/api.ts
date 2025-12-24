@@ -64,6 +64,11 @@ export async function getRecentIntents(limit: number = 10) {
 }
 
 export async function getNetworkStats() {
-  const response = await fetch(`${API_URL}/api/providers/stats/overview`)
+  const response = await fetch(`${API_URL}/api/network/stats`)
+  return response.json()
+}
+
+export async function getRecentActivity(limit: number = 20) {
+  const response = await fetch(`${API_URL}/api/intents?limit=${limit}`)
   return response.json()
 }
