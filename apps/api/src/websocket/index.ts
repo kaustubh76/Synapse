@@ -48,6 +48,26 @@ export function setupWebSocket(
 
     clients.set(socket.id, clientSocket);
 
+    // -------------------- DASHBOARD EVENTS --------------------
+
+    // Dashboard clients join this room to receive all broadcast events
+    socket.on('join_dashboard', () => {
+      socket.join('dashboard');
+      console.log(`Dashboard client ${socket.id} joined dashboard room`);
+
+      // Send current network stats
+      const stats = {
+        totalProviders: providerRegistry.getStats().total,
+        onlineProviders: providerRegistry.getStats().online,
+        openIntents: intentEngine.getOpenIntents().length,
+      };
+      socket.emit('network_stats', {
+        type: 'network_stats',
+        payload: stats,
+        timestamp: Date.now()
+      });
+    });
+
     // -------------------- CLIENT EVENTS --------------------
 
     // Subscribe to intent updates

@@ -62,6 +62,57 @@ async function main() {
     });
   });
 
+  // Initialize core engines early so we can use them in stats endpoint
+  const intentEngine = getIntentEngine();
+  const providerRegistry = getProviderRegistry();
+
+  // Network stats endpoint for dashboard
+  app.get('/api/network/stats', (req, res) => {
+    const providerStats = providerRegistry.getStats();
+    const openIntents = intentEngine.getOpenIntents();
+    const allProviders = providerRegistry.getAllProviders();
+
+    // Calculate totals from providers
+    let totalVolume = 0;
+    let totalIntentsCompleted = 0;
+    let totalIntentsFailed = 0;
+    let totalResponseTime = 0;
+    let responseTimeCount = 0;
+
+    allProviders.forEach(p => {
+      totalVolume += p.totalEarnings || 0;
+      totalIntentsCompleted += p.successfulJobs || 0;
+      totalIntentsFailed += (p.totalJobs - p.successfulJobs) || 0;
+      if (p.avgResponseTime > 0) {
+        totalResponseTime += p.avgResponseTime;
+        responseTimeCount++;
+      }
+    });
+
+    const avgResponseTime = responseTimeCount > 0 ? Math.round(totalResponseTime / responseTimeCount) : 500;
+    const successRate = totalIntentsCompleted + totalIntentsFailed > 0
+      ? Math.round((totalIntentsCompleted / (totalIntentsCompleted + totalIntentsFailed)) * 100)
+      : 95;
+
+    res.json({
+      success: true,
+      data: {
+        providersOnline: providerStats.online,
+        providersTotal: providerStats.total,
+        intentsPending: openIntents.length,
+        intentsCompleted: totalIntentsCompleted,
+        intentsFailed: totalIntentsFailed,
+        totalVolume: totalVolume,
+        avgResponseTime: avgResponseTime,
+        avgSavings: 35, // Average savings percentage (demo value)
+        successRate: successRate,
+        avgReputation: providerStats.avgReputation,
+        capabilityCounts: providerStats.capabilityCounts
+      },
+      timestamp: Date.now()
+    });
+  });
+
   // API info
   app.get('/', (req, res) => {
     res.json({
@@ -81,10 +132,6 @@ async function main() {
       }
     });
   });
-
-  // Initialize core engines
-  const intentEngine = getIntentEngine();
-  const providerRegistry = getProviderRegistry();
 
   // Setup routes
   setupIntentRoutes(app, intentEngine, io);
