@@ -1,66 +1,106 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 export function useSocket() {
-  const socketRef = useRef<Socket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState<any>(null)
+  const socketRef = useRef<Socket | null>(null)
+  const subscribersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map())
 
+  // Initialize socket connection
   useEffect(() => {
-    // Create socket connection
-    socketRef.current = io(SOCKET_URL, {
+    const socket = io(SOCKET_URL, {
       transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
     })
 
-    socketRef.current.on('connect', () => {
-      console.log('Socket connected')
+    socketRef.current = socket
+
+    socket.on('connect', () => {
+      console.log('Socket connected:', socket.id)
       setIsConnected(true)
+
+      // Join dashboard room for broadcast events
+      socket.emit('join_dashboard')
     })
 
-    socketRef.current.on('disconnect', () => {
-      console.log('Socket disconnected')
+    socket.on('disconnect', (reason) => {
+      console.log('Socket disconnected:', reason)
       setIsConnected(false)
     })
 
-    return () => {
-      if (socketRef.current) {
-        socketRef.current.disconnect()
+    socket.on('connect_error', (error) => {
+      console.error('Socket connection error:', error.message)
+      setIsConnected(false)
+    })
+
+    // Handle all incoming events and dispatch to subscribers
+    socket.onAny((event: string, data: any) => {
+      setLastMessage({ event, data, timestamp: Date.now() })
+
+      const callbacks = subscribersRef.current.get(event)
+      if (callbacks) {
+        callbacks.forEach(callback => {
+          try {
+            callback(data)
+          } catch (error) {
+            console.error(`Error in socket callback for ${event}:`, error)
+          }
+        })
       }
+    })
+
+    return () => {
+      socket.disconnect()
+      socketRef.current = null
     }
   }, [])
 
   const subscribe = useCallback((event: string, callback: (data: any) => void) => {
-    if (socketRef.current) {
-      socketRef.current.on(event, (data) => {
-        setLastMessage({ event, data, timestamp: Date.now() })
-        callback(data)
-      })
+    if (!subscribersRef.current.has(event)) {
+      subscribersRef.current.set(event, new Set())
+    }
+    subscribersRef.current.get(event)!.add(callback)
+
+    // Return unsubscribe function
+    return () => {
+      const callbacks = subscribersRef.current.get(event)
+      if (callbacks) {
+        callbacks.delete(callback)
+        if (callbacks.size === 0) {
+          subscribersRef.current.delete(event)
+        }
+      }
     }
   }, [])
 
   const unsubscribe = useCallback((event: string) => {
-    if (socketRef.current) {
-      socketRef.current.off(event)
-    }
+    subscribersRef.current.delete(event)
   }, [])
 
   const emit = useCallback((event: string, data: any) => {
-    if (socketRef.current) {
+    if (socketRef.current?.connected) {
       socketRef.current.emit(event, data)
     }
   }, [])
 
   const subscribeToIntent = useCallback((intentId: string) => {
-    emit('subscribe_intent', { intentId })
-  }, [emit])
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('subscribe_intent', { intentId })
+    }
+  }, [])
 
   const unsubscribeFromIntent = useCallback((intentId: string) => {
-    emit('unsubscribe_intent', { intentId })
-  }, [emit])
+    if (socketRef.current?.connected) {
+      socketRef.current.emit('unsubscribe_intent', { intentId })
+    }
+  }, [])
 
   return {
     socket: socketRef.current,
