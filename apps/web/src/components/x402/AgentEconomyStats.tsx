@@ -23,16 +23,35 @@ interface EconomyStats {
   gasPrice: string
 }
 
-// Base Sepolia network configuration
-const RPC_URL = 'https://sepolia.base.org'
+interface Transaction {
+  hash: string
+  from: string
+  to: string
+  value: string
+  timeStamp: string
+  blockNumber: string
+  isError: string
+  methodId: string
+}
+
+// Crossmint treasury wallet (receives payments)
+const CROSSMINT_TREASURY = '0x98280dc6fEF54De5DF58308a7c62e3003eA7F455'
+
+// Base Sepolia network configuration - Using Alchemy RPC
+const RPC_URL = 'https://base-sepolia.g.alchemy.com/v2/u8kBWypbBxTDpg4f8Yc2I'
 const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
 const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
+
+// ERC-20 Transfer event signature: Transfer(address,address,uint256)
+const TRANSFER_EVENT_SIGNATURE = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
 
 export function AgentEconomyStats() {
   const [stats, setStats] = useState<EconomyStats | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [timeRange, setTimeRange] = useState<'24h' | '7d' | '30d'>('24h')
   const [error, setError] = useState<string | null>(null)
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([])
+  const [isRefreshing, setIsRefreshing] = useState(false)
 
   // Fetch real network stats
   const fetchNetworkStats = useCallback(async () => {
@@ -82,15 +101,93 @@ export function AgentEconomyStats() {
       const usdcBalance = balanceData.result ? BigInt(balanceData.result) : BigInt(0)
       const usdcFormatted = (Number(usdcBalance) / 1e6).toFixed(2)
 
-      // Fetch transaction count from explorer
-      const txResponse = await fetch(
-        `https://api-sepolia.basescan.org/api?module=account&action=txlist&address=${EIGENCLOUD_WALLET}&startblock=0&endblock=99999999&page=1&offset=100&sort=desc`
-      )
-      const txData = await txResponse.json()
-      const txCount = txData.status === '1' ? txData.result.length : 0
-      const uniqueAddresses = txData.status === '1'
-        ? new Set([...txData.result.map((tx: any) => tx.from), ...txData.result.map((tx: any) => tx.to)]).size
-        : 0
+      // Fetch USDC token transfers using Alchemy's alchemy_getAssetTransfers API
+      // Get transfers FROM our wallet
+      const transfersFromResponse = await fetch(RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'alchemy_getAssetTransfers',
+          params: [{
+            fromBlock: '0x0',
+            toBlock: 'latest',
+            fromAddress: EIGENCLOUD_WALLET,
+            contractAddresses: [USDC_ADDRESS],
+            category: ['erc20'],
+            withMetadata: true,
+            maxCount: '0x14' // 20 transfers
+          }],
+          id: 4
+        })
+      })
+      const transfersFromData = await transfersFromResponse.json()
+
+      // Get transfers TO our wallet
+      const transfersToResponse = await fetch(RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'alchemy_getAssetTransfers',
+          params: [{
+            fromBlock: '0x0',
+            toBlock: 'latest',
+            toAddress: EIGENCLOUD_WALLET,
+            contractAddresses: [USDC_ADDRESS],
+            category: ['erc20'],
+            withMetadata: true,
+            maxCount: '0x14' // 20 transfers
+          }],
+          id: 5
+        })
+      })
+      const transfersToData = await transfersToResponse.json()
+
+      // Combine transfers
+      const allTransfers = [
+        ...(transfersFromData.result?.transfers || []),
+        ...(transfersToData.result?.transfers || [])
+      ]
+
+      // Parse into our transaction format
+      const tokenTransfers = allTransfers.map((transfer: any) => {
+        // Convert value to USDC units (6 decimals)
+        const valueInUnits = transfer.value ? Math.round(transfer.value * 1e6).toString() : '0'
+
+        return {
+          hash: transfer.hash,
+          from: transfer.from,
+          to: transfer.to,
+          value: valueInUnits,
+          timeStamp: transfer.metadata?.blockTimestamp
+            ? Math.floor(new Date(transfer.metadata.blockTimestamp).getTime() / 1000).toString()
+            : '0',
+          blockNumber: parseInt(transfer.blockNum, 16).toString(),
+          isError: '0',
+          methodId: ''
+        }
+      })
+
+      // Sort by block number descending
+      tokenTransfers.sort((a: any, b: any) => parseInt(b.blockNumber) - parseInt(a.blockNumber))
+
+      // Remove duplicates (same tx might appear in both from/to queries)
+      const seenHashes = new Set<string>()
+      const uniqueTransfers = tokenTransfers.filter((tx: any) => {
+        if (seenHashes.has(tx.hash)) return false
+        seenHashes.add(tx.hash)
+        return true
+      })
+
+      const txCount = uniqueTransfers.length
+      const uniqueAddresses = new Set([
+        ...uniqueTransfers.map((tx: any) => tx.from.toLowerCase()),
+        ...uniqueTransfers.map((tx: any) => tx.to.toLowerCase())
+      ]).size
+
+      // Store token transfers for display (use uniqueTransfers to avoid duplicates)
+      setRecentTransactions(uniqueTransfers.slice(0, 10))
 
       return {
         totalVolume: usdcFormatted,
@@ -132,6 +229,40 @@ export function AgentEconomyStats() {
     const interval = setInterval(loadStats, 30000)
     return () => clearInterval(interval)
   }, [timeRange, fetchNetworkStats])
+
+  // Manual refresh handler
+  const handleRefresh = async () => {
+    setIsRefreshing(true)
+    try {
+      const networkStats = await fetchNetworkStats()
+      setStats(networkStats)
+    } catch (err) {
+      setError('Failed to refresh')
+    } finally {
+      setIsRefreshing(false)
+    }
+  }
+
+  // Format timestamp to relative time
+  const formatTime = (timestamp: string) => {
+    const date = new Date(parseInt(timestamp) * 1000)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
+
+    if (diffMins < 1) return 'Just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    return `${diffDays}d ago`
+  }
+
+  // Format USDC value (6 decimals)
+  const formatUSDC = (value: string) => {
+    const amount = parseFloat(value) / 1e6
+    return amount.toFixed(amount < 0.01 ? 4 : 2)
+  }
 
   const explorerUrl = 'https://sepolia.basescan.org'
 
@@ -181,6 +312,14 @@ export function AgentEconomyStats() {
               </button>
             ))}
           </div>
+          <button
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="btn-secondary flex items-center gap-2 text-sm"
+          >
+            <RefreshCw className={cn("w-4 h-4", isRefreshing && "animate-spin")} />
+            Refresh
+          </button>
           <a
             href={explorerUrl}
             target="_blank"
@@ -356,31 +495,109 @@ export function AgentEconomyStats() {
         </div>
       </div>
 
-      {/* Real Transaction Proof */}
-      <div className="card p-5 border-l-4 border-accent-500">
-        <div className="flex items-start gap-4">
-          <div className="p-3 rounded-lg bg-accent-500/20">
-            <DollarSign className="w-6 h-6 text-accent-400" />
+      {/* Recent USDC Transactions */}
+      <div className="card p-5">
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-accent-400" />
+            <h3 className="font-semibold text-white">Recent USDC Transactions</h3>
           </div>
-          <div className="flex-1">
-            <h4 className="font-semibold text-white mb-2">Real Transaction Executed</h4>
-            <p className="text-dark-400 text-sm mb-3">
-              Successfully transferred 0.01 USDC on Base Sepolia testnet, confirming live x402 payment protocol functionality.
-            </p>
-            <div className="flex items-center gap-4">
-              <a
-                href="https://sepolia.basescan.org/tx/0x27371ae2ae73b9e14f9772f441a76991a697e95cc8dfde2c63b5cc78f9eae53f"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-accent-400 text-sm flex items-center gap-1 hover:underline"
-              >
-                View Transaction <ExternalLink className="w-3 h-3" />
-              </a>
-              <span className="text-dark-500 text-sm">Block #35361487</span>
-              <span className="badge badge-success">Confirmed</span>
-            </div>
-          </div>
+          <span className="text-xs text-dark-400">x402 Payment Protocol</span>
         </div>
+
+        {recentTransactions.length > 0 ? (
+          <div className="space-y-3">
+            {recentTransactions.map((tx: any, index: number) => {
+              const isOutgoing = tx.from.toLowerCase() === EIGENCLOUD_WALLET.toLowerCase()
+              const isTreasury = tx.to.toLowerCase() === CROSSMINT_TREASURY.toLowerCase()
+
+              return (
+                <motion.div
+                  key={tx.hash}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.05 }}
+                  className={cn(
+                    "flex items-center justify-between p-3 rounded-lg border",
+                    isTreasury
+                      ? "bg-gradient-to-r from-emerald-600/10 to-blue-600/10 border-emerald-600/20"
+                      : "bg-dark-800/50 border-dark-700/40"
+                  )}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "p-2 rounded-lg",
+                      isOutgoing ? "bg-red-500/20" : "bg-emerald-500/20"
+                    )}>
+                      {isOutgoing ? (
+                        <ArrowUpRight className="w-4 h-4 text-red-400" />
+                      ) : (
+                        <ArrowDownRight className="w-4 h-4 text-emerald-400" />
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className={cn(
+                          "font-semibold",
+                          isOutgoing ? "text-red-400" : "text-emerald-400"
+                        )}>
+                          {isOutgoing ? '-' : '+'}${formatUSDC(tx.value)} USDC
+                        </span>
+                        {isTreasury && (
+                          <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded">
+                            Crossmint Treasury
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-xs text-dark-400 flex items-center gap-2 mt-0.5">
+                        <span>{isOutgoing ? 'To:' : 'From:'}</span>
+                        <span className="font-mono">
+                          {(isOutgoing ? tx.to : tx.from).slice(0, 8)}...{(isOutgoing ? tx.to : tx.from).slice(-6)}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="text-right">
+                      <div className="text-dark-300">{formatTime(tx.timeStamp)}</div>
+                      <div className="text-xs text-dark-500">Block #{parseInt(tx.blockNumber).toLocaleString()}</div>
+                    </div>
+                    <a
+                      href={`${explorerUrl}/tx/${tx.hash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-2 hover:bg-dark-700/50 rounded-lg transition-colors"
+                    >
+                      <ExternalLink className="w-4 h-4 text-accent-400" />
+                    </a>
+                  </div>
+                </motion.div>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-dark-400">
+            <DollarSign className="w-12 h-12 mx-auto mb-3 opacity-30" />
+            <p>No USDC transactions yet</p>
+            <p className="text-sm mt-1">Execute a tool to see payments here</p>
+          </div>
+        )}
+
+        {recentTransactions.length > 0 && (
+          <div className="mt-4 pt-4 border-t border-dark-700/40 flex items-center justify-between">
+            <span className="text-xs text-dark-400">
+              Showing {recentTransactions.length} recent transactions
+            </span>
+            <a
+              href={`${explorerUrl}/token/${USDC_ADDRESS}?a=${EIGENCLOUD_WALLET}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-accent-400 text-sm flex items-center gap-1 hover:underline"
+            >
+              View All <ExternalLink className="w-3 h-3" />
+            </a>
+          </div>
+        )}
       </div>
 
       {error && (

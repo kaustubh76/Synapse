@@ -14,10 +14,34 @@ import {
   WalletDashboard,
   AgentEconomyStats,
   EarningsDashboard,
-  ToolRegistryBrowser
+  ToolRegistryBrowser,
+  ToolExecutionModal
 } from '@/components/x402'
 
 type TabType = 'economy' | 'wallet' | 'earnings' | 'tools'
+
+interface RegisteredTool {
+  id: string
+  name: string
+  description: string
+  category: string
+  pricing: {
+    basePrice: string
+    currency: string
+    model: string
+  }
+  provider: {
+    address: string
+    name: string
+    verified: boolean
+    reputation: number
+  }
+  stats: any
+  tags: string[]
+  schema: any
+  status: string
+  createdAt: number
+}
 
 interface WalletData {
   id: string
@@ -34,6 +58,13 @@ export default function X402Page() {
   const [walletAddress, setWalletAddress] = useState<string | undefined>(undefined)
   const [isConnecting, setIsConnecting] = useState(false)
   const [connectionError, setConnectionError] = useState<string | null>(null)
+  const [selectedTool, setSelectedTool] = useState<RegisteredTool | null>(null)
+  const [isExecutionModalOpen, setIsExecutionModalOpen] = useState(false)
+
+  const handleCallTool = useCallback((tool: RegisteredTool) => {
+    setSelectedTool(tool)
+    setIsExecutionModalOpen(true)
+  }, [])
 
   const handleConnect = useCallback(async () => {
     setIsConnecting(true)
@@ -238,7 +269,7 @@ export default function X402Page() {
             {activeTab === 'tools' && (
               <ToolRegistryBrowser
                 onToolSelect={(tool) => console.log('Selected tool:', tool)}
-                onCallTool={(tool) => console.log('Call tool:', tool)}
+                onCallTool={handleCallTool}
               />
             )}
           </motion.div>
@@ -278,6 +309,14 @@ export default function X402Page() {
           </div>
         </div>
       </footer>
+
+      {/* Tool Execution Modal */}
+      <ToolExecutionModal
+        isOpen={isExecutionModalOpen}
+        onClose={() => setIsExecutionModalOpen(false)}
+        tool={selectedTool}
+        walletAddress={walletAddress}
+      />
     </div>
   )
 }

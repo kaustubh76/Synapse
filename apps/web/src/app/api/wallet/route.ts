@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Crossmint API configuration
+// Crossmint API configuration (Staging)
 const CROSSMINT_API_URL = 'https://staging.crossmint.com/api/v1-alpha2'
 const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY || ''
 
@@ -103,7 +103,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create new wallet
+    // Create new MPC wallet (doesn't require adminSigner)
     const response = await fetch(`${CROSSMINT_API_URL}/wallets`, {
       method: 'POST',
       headers: {
@@ -111,11 +111,8 @@ export async function POST(request: NextRequest) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        type: 'evm-smart-wallet',
-        linkedUser,
-        config: {
-          chain,
-        },
+        type: 'evm-mpc-wallet',
+        linkedUser: `email:${linkedUser}@synapse.ai`,
       }),
     })
 

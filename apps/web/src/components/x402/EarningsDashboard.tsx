@@ -31,9 +31,11 @@ interface EarningsDashboardProps {
   onWithdraw?: () => void
 }
 
-// Real wallet address
+// Crossmint Treasury wallet (receives all x402 payments)
+const CROSSMINT_TREASURY = '0x98280dc6fEF54De5DF58308a7c62e3003eA7F455'
+// EigenCloud wallet (pays for tool executions)
 const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
-const RPC_URL = 'https://sepolia.base.org'
+const RPC_URL = 'https://base-sepolia.g.alchemy.com/v2/u8kBWypbBxTDpg4f8Yc2I'
 const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
 
 export function EarningsDashboard({
@@ -69,22 +71,43 @@ export function EarningsDashboard({
     }
   }, [])
 
-  // Fetch real transaction history
+  // Fetch real transaction history using Alchemy API
   const fetchTransactionHistory = useCallback(async (address: string) => {
     try {
-      const response = await fetch(
-        `https://api-sepolia.basescan.org/api?module=account&action=tokentx&address=${address}&contractaddress=${USDC_ADDRESS}&page=1&offset=10&sort=desc`
-      )
+      // Fetch transfers TO this wallet (incoming payments)
+      const response = await fetch(RPC_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'alchemy_getAssetTransfers',
+          params: [{
+            fromBlock: '0x0',
+            toBlock: 'latest',
+            toAddress: address,
+            contractAddresses: [USDC_ADDRESS],
+            category: ['erc20'],
+            withMetadata: true,
+            maxCount: '0x14' // 20 transfers
+          }],
+          id: 2
+        })
+      })
       const data = await response.json()
 
-      if (data.status === '1' && data.result) {
-        return data.result.map((tx: any) => ({
+      if (data.result?.transfers) {
+        return data.result.transfers.map((tx: any) => ({
           id: tx.hash,
-          amount: (parseFloat(tx.value) / 1e6).toFixed(2),
-          timestamp: parseInt(tx.timeStamp) * 1000,
+          amount: tx.value ? tx.value.toFixed(4) : '0',
+          timestamp: tx.metadata?.blockTimestamp
+            ? new Date(tx.metadata.blockTimestamp).getTime()
+            : Date.now(),
           status: 'completed' as const,
-          txHash: tx.hash
-        }))
+          txHash: tx.hash,
+          from: tx.from,
+          to: tx.to,
+          blockNumber: parseInt(tx.blockNum, 16)
+        })).sort((a: any, b: any) => b.blockNumber - a.blockNumber)
       }
       return []
     } catch (err) {
@@ -94,7 +117,8 @@ export function EarningsDashboard({
   }, [])
 
   useEffect(() => {
-    const address = providerId || EIGENCLOUD_WALLET
+    // Use Crossmint Treasury wallet for earnings (where payments are received)
+    const treasuryAddress = CROSSMINT_TREASURY
 
     const loadData = async () => {
       setIsLoading(true)
@@ -102,24 +126,21 @@ export function EarningsDashboard({
 
       try {
         const [balance, transactions] = await Promise.all([
-          fetchUsdcBalance(address),
-          fetchTransactionHistory(address)
+          fetchUsdcBalance(treasuryAddress),
+          fetchTransactionHistory(treasuryAddress)
         ])
 
         setUsdcBalance(balance)
 
-        // Calculate earnings from transactions (incoming USDC)
-        const incoming = transactions.filter((tx: any) =>
-          tx.to?.toLowerCase() === address.toLowerCase()
-        )
-        const totalIncoming = incoming.reduce((sum: number, tx: any) =>
+        // All transactions to treasury are incoming payments
+        const totalIncoming = transactions.reduce((sum: number, tx: any) =>
           sum + parseFloat(tx.amount || '0'), 0
         )
 
         setData({
-          totalEarnings: balance,
+          totalEarnings: totalIncoming.toFixed(4),
           todayEarnings: '0.00', // Would need historical data
-          weeklyEarnings: totalIncoming.toFixed(2),
+          weeklyEarnings: totalIncoming.toFixed(4),
           pendingPayouts: '0.00',
           totalCalls: transactions.length,
           uniqueCallers: new Set(transactions.map((tx: any) => tx.from)).size,
@@ -135,24 +156,11 @@ export function EarningsDashboard({
     }
 
     loadData()
-  }, [providerId, timeRange, fetchUsdcBalance, fetchTransactionHistory])
+  }, [timeRange, fetchUsdcBalance, fetchTransactionHistory])
 
   const explorerUrl = 'https://sepolia.basescan.org'
-  const displayAddress = providerId || EIGENCLOUD_WALLET
-
-  if (!displayAddress) {
-    return (
-      <div className="card p-12 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-dark-800 flex items-center justify-center mx-auto mb-6">
-          <DollarSign className="w-8 h-8 text-dark-500" />
-        </div>
-        <h3 className="text-xl font-semibold text-white mb-2">Provider Dashboard</h3>
-        <p className="text-dark-400 mb-6 max-w-md mx-auto">
-          Connect your wallet to view your earnings dashboard
-        </p>
-      </div>
-    )
-  }
+  // Always show Crossmint Treasury for earnings
+  const displayAddress = CROSSMINT_TREASURY
 
   if (isLoading) {
     return (
@@ -175,8 +183,8 @@ export function EarningsDashboard({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-white">Provider Earnings</h2>
-          <p className="text-dark-400">Real-time earnings from Base Sepolia</p>
+          <h2 className="text-2xl font-bold text-white">Crossmint Treasury Earnings</h2>
+          <p className="text-dark-400">Real-time x402 payments received on Base Sepolia</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex gap-1 bg-dark-800/50 p-1 rounded-lg">
@@ -270,11 +278,14 @@ export function EarningsDashboard({
         </motion.div>
       </div>
 
-      {/* Wallet Info */}
-      <div className="card p-5">
+      {/* Treasury Wallet Info */}
+      <div className="card p-5 border-l-4 border-blue-500">
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-sm text-dark-400 mb-1">Connected Wallet</div>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="text-sm text-dark-400">Crossmint Treasury Wallet</span>
+              <span className="px-2 py-0.5 text-xs bg-blue-500/20 text-blue-400 rounded">MPC Wallet</span>
+            </div>
             <div className="font-mono text-white">{displayAddress}</div>
           </div>
           <a
@@ -291,9 +302,12 @@ export function EarningsDashboard({
       {/* Recent Transactions */}
       <div className="card overflow-hidden">
         <div className="p-4 border-b border-dark-700/50">
-          <div className="flex items-center gap-2">
-            <Download className="w-5 h-5 text-accent-400" />
-            <h3 className="font-semibold text-white">Recent USDC Transfers</h3>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Download className="w-5 h-5 text-accent-400" />
+              <h3 className="font-semibold text-white">Incoming x402 Payments</h3>
+            </div>
+            <span className="text-xs text-dark-400">From EigenCloud → Treasury</span>
           </div>
         </div>
         <div className="divide-y divide-dark-800/50">
@@ -356,25 +370,36 @@ export function EarningsDashboard({
         </div>
       </div>
 
-      {/* Recent Test Transaction Notice */}
-      <div className="card p-4 border-l-4 border-emerald-500">
+      {/* Crossmint Treasury Info */}
+      <div className="card p-4 border-l-4 border-blue-500">
         <div className="flex items-start gap-3">
-          <div className="p-2 rounded-lg bg-emerald-500/20">
-            <TrendingUp className="w-5 h-5 text-emerald-400" />
+          <div className="p-2 rounded-lg bg-blue-500/20">
+            <TrendingUp className="w-5 h-5 text-blue-400" />
           </div>
           <div>
-            <h4 className="font-medium text-white mb-1">Real Transaction Completed</h4>
+            <h4 className="font-medium text-white mb-1">Crossmint MPC Treasury</h4>
             <p className="text-dark-400 text-sm mb-2">
-              Successfully executed 0.01 USDC transfer on Base Sepolia testnet.
+              All x402 payments from tool executions are sent to this Crossmint-managed MPC wallet.
+              Payments come from the EigenCloud wallet when users execute tools.
             </p>
-            <a
-              href="https://sepolia.basescan.org/tx/0x27371ae2ae73b9e14f9772f441a76991a697e95cc8dfde2c63b5cc78f9eae53f"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent-400 text-sm flex items-center gap-1 hover:underline"
-            >
-              View Transaction <ExternalLink className="w-3 h-3" />
-            </a>
+            <div className="flex items-center gap-4 text-sm">
+              <a
+                href={`${explorerUrl}/address/${CROSSMINT_TREASURY}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent-400 flex items-center gap-1 hover:underline"
+              >
+                Treasury Wallet <ExternalLink className="w-3 h-3" />
+              </a>
+              <a
+                href={`${explorerUrl}/address/${EIGENCLOUD_WALLET}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-dark-400 flex items-center gap-1 hover:underline hover:text-dark-300"
+              >
+                EigenCloud Wallet <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
           </div>
         </div>
       </div>
