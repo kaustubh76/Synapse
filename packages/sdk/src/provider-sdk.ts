@@ -140,6 +140,7 @@ export class SynapseProvider extends EventEmitter<ProviderEvents> {
   private reputationScore = 4.5;
   private teeAttested = false;
   private pendingIntents: Set<string> = new Set();
+  private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
   private stats = {
     intentsReceived: 0,
     bidsMade: 0,
@@ -165,6 +166,24 @@ export class SynapseProvider extends EventEmitter<ProviderEvents> {
   async start(): Promise<void> {
     await this.connect();
     await this.register();
+    this.startHeartbeat();
+  }
+
+  /**
+   * Start heartbeat to keep provider online
+   */
+  private startHeartbeat(): void {
+    // Clear existing interval if any
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+    }
+
+    // Send heartbeat every 10 seconds (server timeout is 30s)
+    this.heartbeatInterval = setInterval(() => {
+      if (this.socket && this.isConnected) {
+        this.socket.emit('heartbeat');
+      }
+    }, 10000);
   }
 
   /**
@@ -578,6 +597,10 @@ export class SynapseProvider extends EventEmitter<ProviderEvents> {
    * Stop the provider
    */
   stop(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval);
+      this.heartbeatInterval = null;
+    }
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;

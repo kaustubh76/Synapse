@@ -18,9 +18,10 @@ import { setupAgentRoutes } from './routes/agents.js';
 import { setupEscrowRoutes } from './routes/escrow.js';
 import { setupDisputeRoutes } from './routes/disputes.js';
 import { setupWalletRoutes } from './routes/wallet.js';
+import llmRoutes from './routes/llm.js';
 import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
-import { getIntentEngine, getProviderRegistry } from '@synapse/core';
+import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine } from '@synapse/core';
 import { seedDemoProviders } from './seed/demo-providers.js';
 
 // Load environment variables
@@ -133,6 +134,18 @@ async function main() {
     });
   });
 
+  // Initialize LLM Engine with API keys from environment
+  const llmEngine = getLLMExecutionEngine({
+    openaiApiKey: process.env.OPENAI_API_KEY,
+    anthropicApiKey: process.env.ANTHROPIC_API_KEY,
+    googleApiKey: process.env.GOOGLE_API_KEY,
+    togetherApiKey: process.env.TOGETHER_API_KEY,
+    groqApiKey: process.env.GROQ_API_KEY,
+    ollamaBaseUrl: process.env.OLLAMA_BASE_URL,
+  });
+
+  console.log('✅ LLM Engine initialized with', llmEngine.getAvailableModels().length, 'available models');
+
   // Setup routes
   setupIntentRoutes(app, intentEngine, io);
   setupProviderRoutes(app, providerRegistry, io);
@@ -142,6 +155,7 @@ async function main() {
   setupEscrowRoutes(app, io);
   setupDisputeRoutes(app, io);
   setupWalletRoutes(app);
+  app.use('/api/llm', llmRoutes);
 
   // Setup WebSocket handlers
   setupWebSocket(io, intentEngine, providerRegistry);
@@ -214,6 +228,12 @@ async function main() {
 ║   • POST /api/escrow/:id/release   - Release funds                 ║
 ║   • POST /api/disputes             - Open dispute                  ║
 ║   • POST /api/disputes/:id/evidence - Add evidence                 ║
+║                                                                    ║
+║   🆕 LLM Comparison & Agent Economy:                               ║
+║   • POST /api/llm/compare          - Multi-model comparison        ║
+║   • GET  /api/llm/models           - List available models         ║
+║   • GET  /api/llm/credit/:agentId  - Get credit profile            ║
+║   • POST /api/llm/stream/create    - Create streaming payment      ║
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
     `);

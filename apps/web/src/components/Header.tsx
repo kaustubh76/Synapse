@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Brain, Wifi, WifiOff, Github, LayoutDashboard } from 'lucide-react'
+import { Brain, Wifi, WifiOff, Github, LayoutDashboard, Sparkles } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WalletButton } from '@/components/WalletButton'
 import { useWalletContext } from '@/hooks/useWallet'
@@ -40,6 +40,15 @@ export function Header({ isConnected }: HeaderProps) {
 
           {/* Right side */}
           <div className="flex items-center gap-4">
+            {/* LLM Comparison Link */}
+            <Link
+              href="/llm"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-synapse-800/50 text-synapse-400 hover:text-synapse-300 hover:bg-synapse-800 transition-colors border border-synapse-500/30"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">LLM Compare</span>
+            </Link>
+
             {/* Dashboard Link */}
             <Link
               href="/dashboard"

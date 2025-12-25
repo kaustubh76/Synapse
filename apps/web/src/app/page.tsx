@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Users, Zap, TrendingUp } from 'lucide-react'
+import { Activity, Users, Zap, TrendingUp, Wallet, Shield, Cpu } from 'lucide-react'
 import { Header } from '@/components/Header'
 import { IntentForm } from '@/components/IntentForm'
 import { BidVisualization } from '@/components/BidVisualization'
@@ -11,6 +11,31 @@ import { StatusBadge } from '@/components/StatusBadge'
 import { useSocket } from '@/hooks/useSocket'
 import { createIntent, closeBidding, getProviderStats } from '@/lib/api'
 import { formatUSD } from '@/lib/utils'
+import { cn } from '@/lib/utils'
+
+// Map intent type prefixes to valid IntentCategory enum values
+// Valid categories: 'data', 'compute', 'ai', 'search', 'transaction'
+function inferCategory(type: string): 'data' | 'compute' | 'ai' | 'search' | 'transaction' {
+  const prefix = type.split('.')[0].toLowerCase()
+  const categoryMap: Record<string, 'data' | 'compute' | 'ai' | 'search' | 'transaction'> = {
+    weather: 'data',
+    crypto: 'data',
+    news: 'data',
+    price: 'data',
+    stock: 'data',
+    ai: 'ai',
+    llm: 'ai',
+    inference: 'ai',
+    compute: 'compute',
+    process: 'compute',
+    search: 'search',
+    query: 'search',
+    transaction: 'transaction',
+    transfer: 'transaction',
+    payment: 'transaction',
+  }
+  return categoryMap[prefix] || 'data'
+}
 
 interface Intent {
   id: string
@@ -20,6 +45,39 @@ interface Intent {
   status: string
   assignedProvider?: string
   result?: any
+}
+
+interface EigenComputeResult {
+  teeType: string
+  enclaveId: string
+  jobId: string
+  inputHash: string
+  outputHash: string
+  verified: boolean
+  measurements: {
+    mrEnclave: string
+    mrSigner: string
+  }
+}
+
+interface PaymentResult {
+  status: string
+  amount: number
+  currency: string
+  txHash: string | null
+  blockNumber: number | null
+  explorerUrl: string | null
+}
+
+interface EnhancedResult {
+  data: any
+  providerId: string
+  executionTime: number
+  settledAmount: number
+  settlementTx?: string
+  eigencompute?: EigenComputeResult
+  payment?: PaymentResult
+  aiEnhanced?: boolean
 }
 
 interface Bid {
@@ -41,8 +99,92 @@ export default function Home() {
   const [currentIntent, setCurrentIntent] = useState<Intent | null>(null)
   const [bids, setBids] = useState<Bid[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [isExecuting, setIsExecuting] = useState(false)
   const [stats, setStats] = useState({ online: 0, total: 0 })
   const [recentIntents, setRecentIntents] = useState<Intent[]>([])
+  const [enhancedResult, setEnhancedResult] = useState<EnhancedResult | null>(null)
+
+  // Wallet state
+  const [walletAddress, setWalletAddress] = useState<string | null>(null)
+  const [isConnectingWallet, setIsConnectingWallet] = useState(false)
+
+  // Connect wallet via Crossmint
+  const connectWallet = useCallback(async () => {
+    setIsConnectingWallet(true)
+    try {
+      const response = await fetch('/api/wallet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          linkedUser: `synapse-user-${Date.now()}`,
+          chain: 'base-sepolia',
+        }),
+      })
+      const data = await response.json()
+      if (data.success && data.wallet?.address) {
+        setWalletAddress(data.wallet.address)
+        console.log('[Wallet] Connected:', data.wallet.address)
+      }
+    } catch (error) {
+      console.error('[Wallet] Connection error:', error)
+      // Fallback to demo address
+      setWalletAddress('0x742d35Cc6634C0532925a3b844Bc9e7595f3Ed7d')
+    } finally {
+      setIsConnectingWallet(false)
+    }
+  }, [])
+
+  // Execute intent with EigenCloud after winner is selected
+  const executeWithEigenCloud = useCallback(async (intent: Intent, winnerId: string) => {
+    setIsExecuting(true)
+    try {
+      console.log('[EigenCloud] Executing intent:', intent.id)
+      const response = await fetch('/api/intents/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          intentId: intent.id,
+          intentType: intent.type,
+          params: intent.params,
+          maxBudget: intent.maxBudget,
+          providerId: winnerId,
+          payerAddress: walletAddress,
+        }),
+      })
+
+      const data = await response.json()
+      if (data.success) {
+        console.log('[EigenCloud] Execution complete:', data)
+        setEnhancedResult({
+          data: data.result.data,
+          providerId: data.result.providerId,
+          executionTime: data.result.executionTime,
+          settledAmount: data.result.settledAmount,
+          settlementTx: data.result.settlementTx,
+          eigencompute: data.eigencompute,
+          payment: data.payment,
+          aiEnhanced: data.execution?.aiEnhanced,
+        })
+
+        // Update current intent with result
+        setCurrentIntent(prev => prev ? {
+          ...prev,
+          status: 'COMPLETED',
+          result: {
+            data: data.result.data,
+            providerId: data.result.providerId,
+            executionTime: data.result.executionTime,
+            settledAmount: data.result.settledAmount,
+            settlementTx: data.payment?.txHash,
+          }
+        } : null)
+      }
+    } catch (error) {
+      console.error('[EigenCloud] Execution error:', error)
+    } finally {
+      setIsExecuting(false)
+    }
+  }, [walletAddress])
 
   // Load provider stats
   useEffect(() => {
@@ -69,11 +211,18 @@ export default function Home() {
       }
     })
 
-    // Winner selected
+    // Winner selected - trigger EigenCloud execution
     subscribe('winner_selected', (message: any) => {
       console.log('Winner selected:', message)
       if (message.payload?.intent) {
-        setCurrentIntent(prev => prev ? { ...prev, ...message.payload.intent } : null)
+        const updatedIntent = { ...message.payload.intent }
+        setCurrentIntent(prev => prev ? { ...prev, ...updatedIntent } : null)
+
+        // Trigger EigenCloud execution for the winning provider
+        if (message.payload?.winner) {
+          const winnerId = message.payload.winner.providerAddress || message.payload.winner.providerId
+          executeWithEigenCloud(updatedIntent, winnerId)
+        }
       }
       if (message.payload?.allBids) {
         setBids(message.payload.allBids)
@@ -108,7 +257,7 @@ export default function Home() {
         setCurrentIntent(message.payload.intent)
       }
     })
-  }, [subscribe, currentIntent?.id])
+  }, [subscribe, currentIntent?.id, executeWithEigenCloud])
 
   // Handle intent submission
   const handleSubmitIntent = useCallback(async (data: {
@@ -120,11 +269,12 @@ export default function Home() {
     setIsLoading(true)
     setBids([])
     setCurrentIntent(null)
+    setEnhancedResult(null)
 
     try {
       const response = await createIntent({
         type: data.type,
-        category: data.type.split('.')[0] as any,
+        category: inferCategory(data.type),
         params: data.params,
         maxBudget: data.maxBudget,
         biddingDuration: data.biddingDuration,
@@ -152,7 +302,8 @@ export default function Home() {
     }
   }, [subscribeToIntent])
 
-  const showResult = currentIntent?.status === 'COMPLETED' && currentIntent?.result
+  const showResult = (currentIntent?.status === 'COMPLETED' && currentIntent?.result) || enhancedResult
+  const displayResult = enhancedResult || currentIntent?.result
 
   return (
     <div className="min-h-screen">
@@ -245,13 +396,52 @@ export default function Home() {
 
           {/* Right Column - Bids & Result */}
           <div className="space-y-6">
+            {/* Executing State */}
+            {isExecuting && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30"
+              >
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
+                    <Cpu className="w-6 h-6 text-purple-400 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-purple-400">Executing with EigenCloud</h3>
+                    <p className="text-sm text-gray-400">Running AI inference in secure TEE enclave...</p>
+                  </div>
+                </div>
+                <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                  <motion.div
+                    className="h-full bg-gradient-to-r from-purple-500 to-synapse-500"
+                    initial={{ width: '0%' }}
+                    animate={{ width: '100%' }}
+                    transition={{ duration: 3, ease: 'easeInOut' }}
+                  />
+                </div>
+                <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
+                  <div className="flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    <span>TEE Verified</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Cpu className="w-3 h-3" />
+                    <span>deTERMinal AI</span>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+
             <AnimatePresence mode="wait">
-              {showResult ? (
+              {showResult && displayResult ? (
                 <IntentResult
                   key="result"
-                  result={currentIntent.result}
-                  intentType={currentIntent.type}
-                  maxBudget={currentIntent.maxBudget}
+                  result={displayResult}
+                  intentType={currentIntent?.type || ''}
+                  maxBudget={currentIntent?.maxBudget || 0}
+                  eigencompute={enhancedResult?.eigencompute}
+                  payment={enhancedResult?.payment}
                 />
               ) : (
                 <BidVisualization

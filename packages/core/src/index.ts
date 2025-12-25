@@ -194,5 +194,8 @@ export {
   type ZKVerificationResult
 } from './eigencloud/zk-proofs.js';
 
+// LLM Layer (Multi-Model Comparison, Credit Scores, Streaming Payments, MCP Monetization)
+export * from './llm/index.js';
+
 // Re-export all types for convenience
 export * from '@synapse/types';

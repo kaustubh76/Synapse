@@ -346,7 +346,7 @@ export const SYNAPSE_CONSTANTS = {
   DEFAULT_EXECUTION_TIMEOUT: 30000,     // 30 seconds
   MIN_BID_AMOUNT: 0.0001,               // $0.0001 USDC
   MAX_BID_AMOUNT: 100,                  // $100 USDC
-  FAILOVER_TIMEOUT: 2000,               // 2 seconds before failover
+  FAILOVER_TIMEOUT: 15000,              // 15 seconds before failover (allows for AI + optimistic payment)
   MAX_FAILOVER_ATTEMPTS: 3,
   REPUTATION_PENALTY_FAILURE: 0.1,
   REPUTATION_BONUS_SUCCESS: 0.01,

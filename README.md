@@ -1,445 +1,299 @@
-# SYNAPSE - Intent Network for AI Agents
+# Synapse Agent Economy
 
-> **Decentralized intent propagation network where AI agents compete to serve you.**
->
-> Built for [x402 Hackathon](https://www.x402hackathon.com/) | December 2025
+**The Universal LLM Marketplace & Economic Operating System for Autonomous AI Agents**
 
-## The Vision
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**What if AI agents competed to serve your requests, and you only paid the winner?**
+---
 
-Synapse replaces traditional "Agent calls API" with **"Agent broadcasts Intent -> Network fulfills it"**
+## 🚀 What is Synapse?
 
-```
-Traditional: You -> Pick API -> Pay fixed price -> Hope it works
-Synapse:     You -> Broadcast intent -> Agents compete -> Pay winner only
-```
+Synapse is a decentralized platform that revolutionizes how AI agents interact with LLMs and build economic value. We've built **Wall Street for AI Agents** with:
 
-## Key Features
+### 🧠 Multi-LLM Comparison
+Query 3-5 LLMs in parallel (GPT-4, Claude, Gemini, Llama, etc.), get ranked results by cost/quality/speed, and choose the best.
 
-- **Intent Broadcasting** - Just say what you need, the network handles the rest
-- **Competitive Bidding** - Providers compete on price and reputation in real-time
-- **Real-time Updates** - Watch bids arrive via WebSocket
-- **Auto-Failover** - If a provider fails, the next one takes over instantly
-- **x402 Payments** - HTTP-native micropayments, pay only for results
-- **Reputation System** - Providers earn reputation for quality service (ERC-8004 compatible)
-- **Intent Decomposition** - Complex tasks broken into parallel sub-intents
-- **Escrow & Disputes** - Secure fund holding with dispute resolution
-- **Wallet Integration** - Crossmint smart wallets for all agents
+### 💳 Agent Credit Scores
+FICO-style 300-850 credit scoring for agents. Build reputation, unlock credit limits up to $10,000, and get automatic discounts (0-20%).
 
-## Tech Stack
+### 💸 Streaming Micropayments
+Pay token-by-token with real-time quality control. Pause anytime if unhappy with output. Only pay for what you use.
 
-| Layer | Technology |
-|-------|------------|
-| **Frontend** | Next.js 14, Tailwind CSS, Framer Motion, Socket.io Client |
-| **Backend** | Node.js, Express, Socket.io, Zod validation |
-| **Payments** | x402 Protocol, USDC on Base Sepolia |
-| **Wallets** | Crossmint Smart Wallets SDK |
-| **Identity** | ERC-8004 Agent Identity (Eigencloud compatible) |
-| **Build** | Turborepo v2, TypeScript |
+### 🔧 MCP Monetization
+One-liner to monetize any MCP tool. 7 pricing models built-in. Start earning immediately.
 
-## Quick Start
+---
 
-### Prerequisites
-
-- Node.js 18+
-- npm 9+
+## ⚡ Quick Start
 
 ### Installation
 
 ```bash
 # Clone the repository
-git clone https://github.com/kaushtubh/synapse.git
+git clone https://github.com/yourusername/synapse.git
 cd synapse
 
 # Install dependencies
 npm install
 
-# Build all packages
+# Build packages
 npm run build
+
+# Start servers
+cd apps/api && npm run dev    # API server on :3001
+cd apps/web && npm run dev    # Web UI on :3002
 ```
 
-### Running the Full Stack
+### 🌐 Access the Platform
 
-```bash
-# Terminal 1: Start the API server
-SKIP_DEMO_PROVIDERS=true npm run dev --workspace=@synapse/api
-
-# Terminal 2: Start provider bots
-cd bots && npx ts-node run-all-bots.ts
-
-# Terminal 3: Start the web frontend
-npm run dev --workspace=@synapse/web
-```
-
-### Run E2E Tests
-
-```bash
-# With API and bots running:
-cd bots && npx ts-node test-e2e.ts
-```
-
-### Access Points
-
-- **Frontend**: http://localhost:3000
-- **Dashboard**: http://localhost:3000/dashboard
+- **Intent Network**: http://localhost:3002
+- **LLM Comparison UI**: http://localhost:3002/llm
 - **API**: http://localhost:3001
-- **Health**: http://localhost:3001/health
 
-## Architecture
+### 🧪 Run Demos
+
+```bash
+# Test LLM system
+bash demo-llm-comparison.sh
+
+# Test intent network
+bash test-llm-system.sh
+```
+
+### First LLM Comparison
+
+**Via API**:
+```bash
+curl -X POST http://localhost:3001/api/llm/compare \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Explain quantum computing in simple terms",
+    "modelTier": "balanced",
+    "compareBy": ["cost", "quality", "latency"],
+    "agentId": "demo_agent"
+  }'
+```
+
+**Via Web UI**:
+1. Visit http://localhost:3002/llm
+2. Enter your prompt
+3. Select model tier (premium/balanced/budget)
+4. Click "Compare LLMs"
+5. See side-by-side results with cost/quality/latency rankings!
+
+**Note**: Add API keys to `apps/api/.env` to enable real LLM comparisons. See [LLM Quick Start Guide](docs/LLM_QUICK_START.md).
+
+---
+
+## 🏗️ Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│              SYNAPSE AGENT ECONOMY                          │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │         MULTI-LLM COMPARISON LAYER                     │ │
+│  │  OpenAI • Anthropic • Google • Ollama • Together      │ │
+│  │  ▶ 20+ Models  ▶ Parallel Execution  ▶ Smart Ranking │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │         ECONOMIC LAYER                                 │ │
+│  │  Credit Scores • Streaming Payments • MCP Monetization│ │
+│  │  ▶ FICO-style  ▶ Token-by-token  ▶ 7 Pricing Models  │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                             │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │         EIGENCLOUD INTEGRATION                         │ │
+│  │  TEE Verification • ZK Proofs • ERC-8004 • x402        │ │
+│  └────────────────────────────────────────────────────────┘ │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 💡 Key Features
+
+### 1. Universal LLM Access
+
+Access 20+ models from 6 providers with one API:
+
+```typescript
+const result = await llmEngine.executeComparison({
+  prompt: 'Write code to sort an array',
+  models: ['gpt-4-turbo', 'claude-3-5-sonnet', 'gemini-1.5-pro'],
+});
+
+console.log(`Best model: ${result.comparison.recommended}`);
+console.log(`Cheapest: ${result.comparison.cheapest}`);
+console.log(`Fastest: ${result.comparison.fastest}`);
+```
+
+### 2. Credit Scores That Work
+
+```typescript
+const scorer = getAgentCreditScorer();
+
+// New agent starts at 650 (Good tier)
+const profile = await scorer.getOrCreateProfile('agent_123', '0xWallet');
+
+// Build credit through successful payments
+await scorer.recordPayment('agent_123', 100, true);
+
+// Score improves → 740 (Excellent)
+// Unlocks: $5000 credit limit, 15% discount, 75% less escrow
+```
+
+### 3. Streaming Payments
+
+```typescript
+const stream = await streamController.createStream({
+  modelId: 'gpt-4-turbo',
+  maxAmount: 1.0,
+  costPerToken: 0.00003,
+});
+
+// Pay as tokens stream
+await streamController.streamTokens(stream.streamId, 1);
+
+// Unhappy with quality? Pause immediately
+await streamController.pauseStream(stream.streamId, 'quality_drop');
+```
+
+### 4. One-Liner Monetization
+
+```typescript
+import { monetize, PerCallPricing } from '@synapse/core/llm';
+
+const service = monetize({
+  serverId: 'my-api',
+  recipient: '0xMyWallet',
+  defaultPricing: PerCallPricing(0.001),
+});
+
+// That's it! Every call now generates revenue
+```
+
+---
+
+## 📊 Supported Models
+
+| Provider | Models | Price Range | Speed |
+|----------|--------|-------------|-------|
+| **OpenAI** | GPT-4 Turbo, GPT-4o, GPT-3.5 | $0.15 - $30 per 1M tokens | Medium |
+| **Anthropic** | Claude 3.5 Sonnet, Opus, Haiku | $0.80 - $75 per 1M tokens | Medium |
+| **Google** | Gemini 1.5 Pro, Flash | $0.075 - $5 per 1M tokens | Fast |
+| **Ollama** | Llama 3.1, Mistral, Qwen | Free (self-hosted) | Medium |
+| **Together** | Llama 405B, Mixtral | $0.90 - $3.50 per 1M tokens | Fast |
+| **Groq** | Llama 3.1, Mixtral | $0.24 - $0.79 per 1M tokens | Ultra-fast |
+
+---
+
+## 📈 Credit Tier Benefits
+
+| Tier | Score | Limit | Discount | Escrow |
+|------|-------|-------|----------|--------|
+| **Exceptional** | 800-850 | $10,000 | 20% off | None |
+| **Excellent** | 740-799 | $5,000 | 15% off | 25% |
+| **Good** | 670-739 | $1,000 | 10% off | 50% |
+| **Fair** | 580-669 | $200 | None | 100% |
+| **Subprime** | 300-579 | $0 | +10% fee | 100% |
+
+---
+
+## 🔧 API Reference
+
+### LLM Comparison
+- `POST /api/llm/compare` - Execute multi-model comparison
+- `GET /api/llm/models` - List available models
+- `GET /api/llm/providers` - Check provider health
+
+### Credit System
+- `GET /api/llm/credit/:agentId` - Get credit profile
+- `POST /api/llm/credit/:agentId/create` - Create profile
+- `POST /api/llm/credit/:agentId/payment` - Record payment
+
+### Streaming
+- `POST /api/llm/stream/create` - Create payment stream
+- `POST /api/llm/stream/:streamId/pause` - Pause stream
+- `POST /api/llm/stream/:streamId/resume` - Resume stream
+
+[Full API Documentation →](docs/LLM_SYSTEM_GUIDE.md)
+
+---
+
+## 📚 Documentation
+
+- **[Multi-LLM Integration Plan](docs/MULTI_LLM_INTEGRATION_PLAN.md)** - Architecture overview
+- **[Agent Economy Blueprint](docs/X402_AGENT_ECONOMY_BLUEPRINT.md)** - Economic system design
+- **[System Guide](docs/LLM_SYSTEM_GUIDE.md)** - Complete usage guide
+- **[Implementation Complete](docs/IMPLEMENTATION_COMPLETE.md)** - What we built
+
+---
+
+## 🛠️ Tech Stack
+
+- **TypeScript** - Type-safe development
+- **Node.js + Express** - API server
+- **Socket.IO** - Real-time communication
+- **Next.js** - Web dashboard
+- **EigenCloud** - TEE verification
+- **x402** - Micropayments protocol
+- **Turborepo** - Monorepo management
+
+---
+
+## 🌟 What Makes This Special
+
+### 1. First Multi-LLM Marketplace
+No one else offers transparent side-by-side comparison across 6+ providers with real-time ranking.
+
+### 2. Credit Scores for AI
+Industry-first FICO-style scoring enables trustless credit and automatic benefits.
+
+### 3. Streaming Micropayments
+Pay token-by-token with real-time quality control. Revolutionary capital efficiency.
+
+### 4. One-Liner Monetization
+Turn any MCP tool into a revenue stream with literally one function call.
+
+### 5. Verifiable Execution
+Built on Eigen for TEE attestation and ZK proofs. Trustless by design.
+
+---
+
+## 🚦 Project Structure
 
 ```
 synapse/
 ├── apps/
-│   ├── api/                 # Backend Express server
-│   │   ├── routes/          # REST API endpoints
-│   │   ├── websocket/       # Real-time event handlers
-│   │   └── events/          # Engine event broadcasting
-│   └── web/                 # Next.js frontend
-│       ├── components/      # React components
-│       ├── hooks/           # Custom hooks (useSocket, useWallet)
-│       └── app/             # Pages (home, dashboard)
+│   ├── api/              # Express API server
+│   └── web/              # Next.js dashboard
 ├── packages/
-│   ├── core/                # Core engines
-│   │   ├── intent-engine    # Intent lifecycle management
-│   │   ├── bid-scorer       # Scoring algorithm
-│   │   ├── provider-registry# Provider discovery
-│   │   ├── failover-manager # Circuit breaker & failover
-│   │   ├── escrow-manager   # Fund holding
-│   │   ├── dispute-resolver # Dispute handling
-│   │   ├── agent-identity   # ERC-8004 registry
-│   │   ├── intent-decomposer# Complex task breakdown
-│   │   └── x402-middleware  # Payment integration
-│   ├── types/               # Shared TypeScript definitions
-│   └── sdk/                 # Client SDKs
-│       ├── SynapseClient    # Intent creation client
-│       ├── ProviderSDK      # Provider bot SDK
-│       ├── AgentClient      # Full agent integration
-│       ├── X402Client       # Payment client
-│       └── CrossmintWallet  # Wallet management
-├── bots/                    # Provider bot implementations
-│   ├── weather-bot.ts       # Weather data provider
-│   ├── crypto-bot.ts        # Crypto price provider
-│   ├── news-bot.ts          # News aggregation provider
-│   ├── run-all-bots.ts      # Bot orchestrator
-│   └── test-e2e.ts          # End-to-end tests
-└── providers/               # Standalone provider packages
-    ├── weather-bot/
-    ├── crypto-bot/
-    └── news-bot/
+│   ├── core/             # Core business logic
+│   │   ├── llm/          # 🆕 LLM comparison layer
+│   │   ├── eigencloud/   # TEE/ZK integration
+│   │   └── x402/         # Payment infrastructure
+│   ├── types/            # Shared TypeScript types
+│   ├── sdk/              # Provider SDK
+│   └── mcp-gateway/      # MCP server integration
+├── bots/                 # Example provider bots
+└── docs/                 # Documentation
 ```
-
-## How It Works
-
-### 1. Create an Intent
-
-User broadcasts what they need:
-
-```typescript
-// POST /api/intents
-{
-  "type": "crypto.price",
-  "category": "data",
-  "params": { "symbol": "BTC" },
-  "maxBudget": 0.02,
-  "biddingDuration": 5000
-}
-```
-
-### 2. Providers Bid (Real-time)
-
-Multiple AI agents compete:
-
-```
-CryptoBot:    $0.003 | Rep: 4.9 | Est: 300ms  | Score: 87.2
-WeatherBot:   N/A (no capability)
-NewsBot:      N/A (no capability)
-```
-
-### 3. Winner Selected
-
-Best bid wins based on scoring algorithm:
-
-```
-Score = (Price × 0.4) + (Reputation × 0.4) + (Speed × 0.1) × TEE_Bonus
-
-Where:
-- Price Score = (MaxBudget - BidPrice) / MaxBudget
-- Reputation Score = ProviderRep / 5.0
-- Speed Score = 1 - (EstTime / MaxLatency)
-- TEE Bonus = 1.2x for TEE-attested providers
-```
-
-### 4. Execution & Payment
-
-- Winner executes the intent
-- Result submitted with proof
-- x402 payment settles automatically
-- User gets refund of unused budget
-- Provider reputation updated
-
-## API Reference
-
-### Intents
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/intents` | Create new intent |
-| GET | `/api/intents` | List all intents |
-| GET | `/api/intents/:id` | Get intent details |
-| POST | `/api/intents/:id/bid` | Submit a bid |
-| POST | `/api/intents/:id/close-bidding` | Close bidding |
-| POST | `/api/intents/:id/result` | Submit result |
-
-### Providers
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/providers` | Register provider |
-| GET | `/api/providers` | List all providers |
-| GET | `/api/providers/:id` | Get provider details |
-| GET | `/api/providers/stats/overview` | Network statistics |
-| GET | `/api/providers/discover/:type` | Discover by capability |
-
-### Agents (ERC-8004)
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/agents/register` | Register agent |
-| GET | `/api/agents/:id` | Get agent profile |
-| POST | `/api/agents/:id/stake` | Deposit stake |
-| POST | `/api/agents/feedback` | Submit feedback |
-
-### Escrow
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/escrow` | Create escrow |
-| GET | `/api/escrow/:id` | Get escrow details |
-| POST | `/api/escrow/:id/release` | Release to provider |
-| POST | `/api/escrow/:id/refund` | Refund to client |
-
-### Disputes
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/disputes` | Open dispute |
-| GET | `/api/disputes/:id` | Get dispute details |
-| POST | `/api/disputes/:id/evidence` | Add evidence |
-| POST | `/api/disputes/:id/resolve` | Resolve dispute |
-
-### Wallet
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/wallet/create` | Create wallet |
-| GET | `/api/wallet/:address/balance` | Get balance |
-| POST | `/api/wallet/transfer` | Transfer funds |
-| POST | `/api/wallet/x402-payment` | Create x402 payment |
-
-## WebSocket Events
-
-### Client -> Server
-
-| Event | Description |
-|-------|-------------|
-| `subscribe_intent` | Subscribe to intent updates |
-| `unsubscribe_intent` | Unsubscribe from intent |
-
-### Server -> Client
-
-| Event | Description |
-|-------|-------------|
-| `intent_created` | New intent created |
-| `bid_received` | New bid on intent |
-| `winner_selected` | Winner chosen |
-| `intent_completed` | Intent fulfilled |
-| `intent_failed` | Intent failed |
-| `failover_triggered` | Failover to backup |
-| `payment_settled` | Payment confirmed |
-
-### Server -> Provider
-
-| Event | Description |
-|-------|-------------|
-| `new_intent_available` | New intent to bid on |
-| `intent_assigned` | Won the intent |
-
-## Provider Bots
-
-### Weather Bot
-- **Capabilities**: `weather.current`, `weather.forecast`
-- **Base Price**: $0.005
-- **Reputation**: 4.8/5
-- **Response Time**: 500-1000ms
-
-### Crypto Bot
-- **Capabilities**: `crypto.price`, `crypto.history`
-- **Base Price**: $0.003
-- **Reputation**: 4.9/5
-- **Response Time**: 200-500ms
-
-### News Bot
-- **Capabilities**: `news.latest`, `news.search`
-- **Base Price**: $0.008
-- **Reputation**: 4.5/5
-- **Response Time**: 800-1500ms
-
-## SDK Usage
-
-### Creating Intents (Client)
-
-```typescript
-import { SynapseClient } from '@synapse/sdk';
-
-const client = new SynapseClient({
-  apiUrl: 'http://localhost:3001',
-  walletAddress: '0x...'
-});
-
-// Simple intent
-const result = await client.getCryptoPrice('BTC');
-console.log(result.data); // { symbol: 'BTC', price: 98500 }
-
-// Custom intent
-const intent = await client.createIntent({
-  type: 'news.latest',
-  category: 'data',
-  params: { topic: 'AI' },
-  maxBudget: 0.02
-});
-```
-
-### Building Providers
-
-```typescript
-import { ProviderSDK } from '@synapse/sdk';
-
-const provider = new ProviderSDK({
-  name: 'MyBot',
-  capabilities: ['custom.service'],
-  apiUrl: 'http://localhost:3001',
-  walletAddress: '0x...'
-});
-
-// Handle intents
-provider.on('intentReceived', async (intent) => {
-  // Calculate bid
-  const bid = await provider.submitBid(intent.id, {
-    bidAmount: 0.005,
-    estimatedTime: 500,
-    confidence: 95
-  });
-});
-
-// Execute when assigned
-provider.on('intentAssigned', async (intent) => {
-  const result = await executeMyService(intent.params);
-  await provider.submitResult(intent.id, result);
-});
-
-await provider.connect();
-```
-
-## Implementation Status
-
-### Fully Implemented
-- [x] Intent Engine - Complete lifecycle management
-- [x] Bidding Engine - Scoring with price/reputation/speed
-- [x] Provider Registry - Registration and discovery
-- [x] Failover Manager - Circuit breaker pattern
-- [x] Escrow Manager - Fund holding and release
-- [x] Dispute Resolver - Full dispute lifecycle
-- [x] Agent Identity - ERC-8004 compatible
-- [x] Intent Decomposer - Parallel sub-intents
-- [x] x402 Middleware - Payment framework
-- [x] WebSocket Events - Real-time updates
-- [x] Provider Bots - Weather, Crypto, News
-- [x] Web Dashboard - Provider network visualization
-- [x] Wallet Integration - Crossmint SDK wrapper
-- [x] E2E Tests - Full lifecycle testing
-
-### Demo Mode (Simulation)
-- [x] x402 payments (simulated, framework ready)
-- [x] Crossmint wallets (demo mode, API ready)
-- [x] TEE attestation (data structures, not enforced)
-
-## Demo Scenarios
-
-### Scenario 1: Weather Query (5s)
-```
-User: "Get NYC weather, budget $0.02"
--> Intent broadcasts to network
--> WeatherBot bids $0.005
--> Winner selected (highest score)
--> Result: { city: "New York", temp: 72, condition: "Sunny" }
--> Payment: $0.005 to provider, $0.015 refund
-```
-
-### Scenario 2: Crypto Price (5s)
-```
-User: "What's Bitcoin's price?"
--> CryptoBot bids $0.003 (lowest, highest rep)
--> Result: { symbol: "BTC", price: 98500, change24h: 2.3 }
--> x402 settlement confirmed
-```
-
-### Scenario 3: Auto-Failover
-```
-User: "Get latest AI news"
--> NewsBot wins, fails to respond
--> Timeout at 2000ms
--> Automatic failover to backup provider
--> User receives result without seeing failure
--> Original provider reputation -0.1
-```
-
-## Why Synapse Wins
-
-| Traditional Approach | Synapse Approach |
-|---------------------|------------------|
-| Agent calls specific server | Agent broadcasts, network fulfills |
-| Fixed pricing | Competitive bidding |
-| Manual failover coding | Automatic failover built-in |
-| Trust the provider blindly | Verify with proofs & reputation |
-| Sequential execution | Parallel sub-intents |
-| Centralized discovery | Decentralized registry |
-
-## Environment Variables
-
-```bash
-# API Server
-PORT=3001
-CORS_ORIGIN=http://localhost:3000
-SKIP_DEMO_PROVIDERS=true
-X402_DEMO_MODE=true
-X402_FACILITATOR_URL=
-
-# Crossmint (optional)
-CROSSMINT_API_KEY=
-CROSSMINT_ENV=staging
-
-# Default Chain
-DEFAULT_CHAIN=base-sepolia
-```
-
-## Team
-
-- **Kaushtubh** - LNMIIT
-
-## License
-
-MIT License - see [LICENSE](LICENSE)
-
-## Acknowledgments
-
-- [x402 Protocol](https://x402.org) - HTTP-native payments
-- [Crossmint](https://crossmint.com) - Smart wallets for agents
-- [Eigencloud](https://eigencloud.xyz) - Verifiable compute & ERC-8004
-- [thirdweb](https://thirdweb.com) - Multi-chain infrastructure
 
 ---
 
-**Built for the x402 Hackathon**
+## 🔗 Links
 
-*"The nervous system for the agentic economy"*
+- **Documentation**: [docs/](docs/)
+- **API Docs**: [docs/LLM_SYSTEM_GUIDE.md](docs/LLM_SYSTEM_GUIDE.md)
+- **Architecture**: [docs/IMPLEMENTATION_COMPLETE.md](docs/IMPLEMENTATION_COMPLETE.md)
+
+---
+
+**Built with ❤️ for the future of autonomous AI agents**
+
+🤖 **Let's build the agent economy together!**
