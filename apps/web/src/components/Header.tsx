@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Brain, Wifi, WifiOff, Github, LayoutDashboard, Sparkles } from 'lucide-react'
+import { Brain, Wifi, WifiOff, Github, LayoutDashboard, Sparkles, Plug, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WalletButton } from '@/components/WalletButton'
 import { useWalletContext } from '@/hooks/useWallet'
@@ -40,6 +40,24 @@ export function Header({ isConnected }: HeaderProps) {
 
           {/* Right side */}
           <div className="flex items-center gap-4">
+            {/* Full Demo Link */}
+            <Link
+              href="/demo"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-yellow-600/50 to-orange-600/50 text-yellow-400 hover:text-yellow-300 transition-colors border border-yellow-500/30"
+            >
+              <Zap className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">Full Demo</span>
+            </Link>
+
+            {/* MCP Bilateral Link */}
+            <Link
+              href="/mcp"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-800/50 text-purple-400 hover:text-purple-300 hover:bg-purple-800 transition-colors border border-purple-500/30"
+            >
+              <Plug className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">MCP</span>
+            </Link>
+
             {/* LLM Comparison Link */}
             <Link
               href="/llm"
