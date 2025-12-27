@@ -55,3 +55,15 @@ export {
   type ToolCall,
   type ToolCallResult,
 } from './mcp-monetization.js';
+
+// LLM Intent Bridge (LLMs as competing bidders)
+export {
+  LLMIntentBridge,
+  getLLMIntentBridge,
+  resetLLMIntentBridge,
+  type LLMIntentRequest,
+  type LLMBid,
+  type LLMIntent,
+  type LLMIntentResult,
+  type LLMProvider,
+} from './llm-intent-bridge.js';
