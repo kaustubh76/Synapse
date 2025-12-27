@@ -16,6 +16,16 @@ export type SessionState =
   | 'closed'
   | 'settled';
 
+// MCP Identity (auto-generated wallet)
+export interface MCPSessionIdentity {
+  clientId: string;
+  address: string;
+  publicKey: string;
+  createdAt: number;
+  walletType: 'local' | 'crossmint';
+  network: 'base' | 'base-sepolia';
+}
+
 // MCP Session
 export interface MCPSession {
   id: string;
@@ -24,6 +34,8 @@ export interface MCPSession {
     version: string;
   };
   walletAddress: string;
+  // Auto-generated identity with wallet
+  identity?: MCPSessionIdentity;
   budget: {
     initial: number;
     spent: number;
@@ -41,6 +53,8 @@ export interface MCPSession {
     totalLatency: number;
     errors: number;
   };
+  // Bilateral session tracking
+  bilateralSessionId?: string;
 }
 
 export interface SessionTransaction {

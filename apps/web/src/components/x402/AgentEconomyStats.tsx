@@ -7,6 +7,13 @@ import {
   ArrowUpRight, ArrowDownRight, Clock, BarChart3, ExternalLink, RefreshCw
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  CROSSMINT_TREASURY,
+  EIGENCLOUD_WALLET,
+  USDC_ADDRESS,
+  TRANSFER_EVENT_SIGNATURE,
+  RPC_URL
+} from '@/lib/config'
 
 interface EconomyStats {
   totalVolume: string
@@ -34,16 +41,7 @@ interface Transaction {
   methodId: string
 }
 
-// Crossmint treasury wallet (receives payments)
-const CROSSMINT_TREASURY = '0x98280dc6fEF54De5DF58308a7c62e3003eA7F455'
-
-// Base Sepolia network configuration - Using Alchemy RPC
-const RPC_URL = 'https://base-sepolia.g.alchemy.com/v2/u8kBWypbBxTDpg4f8Yc2I'
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
-const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
-
-// ERC-20 Transfer event signature: Transfer(address,address,uint256)
-const TRANSFER_EVENT_SIGNATURE = '0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef'
+// Wallet and contract addresses are imported from config
 
 export function AgentEconomyStats() {
   const [stats, setStats] = useState<EconomyStats | null>(null)
@@ -86,7 +84,7 @@ export function AgentEconomyStats() {
       const gasPriceGwei = (Number(gasPriceWei) / 1e9).toFixed(2)
 
       // Get USDC balance of our wallet
-      const balanceOfData = '0x70a08231000000000000000000000000' + EIGENCLOUD_WALLET.slice(2).toLowerCase()
+      const balanceOfData = '0x70a08231000000000000000000000000' + EIGENCLOUD_WALLET.address.slice(2).toLowerCase()
       const balanceResponse = await fetch(RPC_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -112,7 +110,7 @@ export function AgentEconomyStats() {
           params: [{
             fromBlock: '0x0',
             toBlock: 'latest',
-            fromAddress: EIGENCLOUD_WALLET,
+            fromAddress: EIGENCLOUD_WALLET.address,
             contractAddresses: [USDC_ADDRESS],
             category: ['erc20'],
             withMetadata: true,
@@ -133,7 +131,7 @@ export function AgentEconomyStats() {
           params: [{
             fromBlock: '0x0',
             toBlock: 'latest',
-            toAddress: EIGENCLOUD_WALLET,
+            toAddress: EIGENCLOUD_WALLET.address,
             contractAddresses: [USDC_ADDRESS],
             category: ['erc20'],
             withMetadata: true,
@@ -441,7 +439,7 @@ export function AgentEconomyStats() {
                 rel="noopener noreferrer"
                 className="text-accent-400 font-mono text-sm hover:underline flex items-center gap-1"
               >
-                {EIGENCLOUD_WALLET.slice(0, 10)}...{EIGENCLOUD_WALLET.slice(-8)}
+                {EIGENCLOUD_WALLET.address.slice(0, 10)}...{EIGENCLOUD_WALLET.address.slice(-8)}
                 <ExternalLink className="w-3 h-3" />
               </a>
             </div>
@@ -508,7 +506,7 @@ export function AgentEconomyStats() {
         {recentTransactions.length > 0 ? (
           <div className="space-y-3">
             {recentTransactions.map((tx: any, index: number) => {
-              const isOutgoing = tx.from.toLowerCase() === EIGENCLOUD_WALLET.toLowerCase()
+              const isOutgoing = tx.from.toLowerCase() === EIGENCLOUD_WALLET.address.toLowerCase()
               const isTreasury = tx.to.toLowerCase() === CROSSMINT_TREASURY.toLowerCase()
 
               return (
@@ -589,7 +587,7 @@ export function AgentEconomyStats() {
               Showing {recentTransactions.length} recent transactions
             </span>
             <a
-              href={`${explorerUrl}/token/${USDC_ADDRESS}?a=${EIGENCLOUD_WALLET}`}
+              href={`${explorerUrl}/token/${USDC_ADDRESS}?a=${EIGENCLOUD_WALLET.address}`}
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent-400 text-sm flex items-center gap-1 hover:underline"

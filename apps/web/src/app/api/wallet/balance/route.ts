@@ -1,10 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-const CROSSMINT_API_URL = 'https://staging.crossmint.com/api/v1-alpha2'
+// Configuration from environment
+const CROSSMINT_API_URL = process.env.NEXT_PUBLIC_CROSSMINT_API_URL || 'https://staging.crossmint.com/api/v1-alpha2'
 const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY || ''
+const NETWORK = process.env.NEXT_PUBLIC_NETWORK || 'base-sepolia'
 
-// Base Sepolia USDC contract address
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+// USDC contract addresses by network
+const USDC_ADDRESSES: Record<string, string> = {
+  'base-sepolia': process.env.USDC_ADDRESS_BASE_SEPOLIA || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  'base': process.env.USDC_ADDRESS_BASE || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+}
+const USDC_ADDRESS = USDC_ADDRESSES[NETWORK] || USDC_ADDRESSES['base-sepolia']
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url)

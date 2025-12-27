@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 
-// EigenCloud wallet configuration from environment
+// Configuration from environment
 const EIGENCLOUD_WALLET_ADDRESS = process.env.EIGENCLOUD_WALLET_ADDRESS || ''
 const EIGENCLOUD_PRIVATE_KEY = process.env.EIGENCLOUD_PRIVATE_KEY || ''
-const RPC_URL = 'https://sepolia.base.org'
-const CHAIN_ID = 84532
+const NETWORK = process.env.NEXT_PUBLIC_NETWORK || 'base-sepolia'
+const RPC_URL = process.env.BASE_RPC_URL || 'https://sepolia.base.org'
+const CHAIN_ID = NETWORK === 'base' ? 8453 : 84532
 
-// Base Sepolia USDC contract
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+// USDC contract addresses by network
+const USDC_ADDRESSES: Record<string, string> = {
+  'base-sepolia': process.env.USDC_ADDRESS_BASE_SEPOLIA || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  'base': process.env.USDC_ADDRESS_BASE || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+}
+const USDC_ADDRESS = USDC_ADDRESSES[NETWORK] || USDC_ADDRESSES['base-sepolia']
 const USDC_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',

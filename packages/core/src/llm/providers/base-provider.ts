@@ -95,7 +95,9 @@ export abstract class BaseLLMProvider extends EventEmitter {
     const startTime = Date.now();
 
     try {
+      console.log(`[Provider ${this.providerId}] Calling complete() for model ${options.model}`);
       const response = await this.complete(options);
+      console.log(`[Provider ${this.providerId}] Complete() returned successfully`);
 
       return {
         executionId,
@@ -116,6 +118,8 @@ export abstract class BaseLLMProvider extends EventEmitter {
         status: 'completed',
       };
     } catch (error) {
+      console.error(`[Provider ${this.providerId}] Error in complete():`, error);
+      console.error(`[Provider ${this.providerId}] Error details:`, error instanceof Error ? error.message : String(error));
       return {
         executionId,
         modelId: options.model,

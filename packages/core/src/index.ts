@@ -197,5 +197,11 @@ export {
 // LLM Layer (Multi-Model Comparison, Credit Scores, Streaming Payments, MCP Monetization)
 export * from './llm/index.js';
 
+// MCP Layer (Tool Intent Bridge for MCP-based bidding)
+export * from './mcp/index.js';
+
+// Real Tool Providers (Weather, Crypto, News APIs)
+export * from './tools/index.js';
+
 // Re-export all types for convenience
 export * from '@synapse/types';

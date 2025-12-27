@@ -44,6 +44,18 @@ export * from './crypto/index.js';
 // Settlement (Thirdweb integration)
 export * from './settlement/index.js';
 
+// MCP Identity (auto-generated wallet identity)
+export * from './identity/index.js';
+
+// Bilateral Sessions (payer/payee role switching)
+export * from './bilateral/index.js';
+
+// SDK - Unified entry points
+export * from './sdk/index.js';
+
+// Payment Verification (on-chain USDC verification)
+export * from './verification/index.js';
+
 // ============================================================
 // Quick Start Exports
 // ============================================================

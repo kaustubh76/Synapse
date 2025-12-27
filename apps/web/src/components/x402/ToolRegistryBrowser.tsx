@@ -8,6 +8,7 @@ import {
   ExternalLink, Copy, Check, TrendingUp, Users, AlertCircle
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EIGENCLOUD_WALLET } from '@/lib/config'
 
 interface ToolPricing {
   basePrice: string
@@ -62,9 +63,6 @@ const CATEGORIES = [
   'Utility'
 ]
 
-// Real wallet address
-const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
-
 // Available x402 tools (these would be registered on-chain in production)
 const AVAILABLE_TOOLS: RegisteredTool[] = [
   {
@@ -74,7 +72,7 @@ const AVAILABLE_TOOLS: RegisteredTool[] = [
     category: 'Research',
     pricing: { basePrice: '0.05', currency: 'USDC', model: 'per-call' },
     provider: {
-      address: EIGENCLOUD_WALLET,
+      address: EIGENCLOUD_WALLET.address,
       name: 'Synapse AI',
       verified: true,
       reputation: 5.0
@@ -100,7 +98,7 @@ const AVAILABLE_TOOLS: RegisteredTool[] = [
     category: 'Analytics',
     pricing: { basePrice: '0.02', currency: 'USDC', model: 'per-call' },
     provider: {
-      address: EIGENCLOUD_WALLET,
+      address: EIGENCLOUD_WALLET.address,
       name: 'Synapse AI',
       verified: true,
       reputation: 5.0
@@ -126,7 +124,7 @@ const AVAILABLE_TOOLS: RegisteredTool[] = [
     category: 'Data',
     pricing: { basePrice: '0.01', currency: 'USDC', model: 'per-call' },
     provider: {
-      address: EIGENCLOUD_WALLET,
+      address: EIGENCLOUD_WALLET.address,
       name: 'Synapse AI',
       verified: true,
       reputation: 5.0
@@ -152,7 +150,7 @@ const AVAILABLE_TOOLS: RegisteredTool[] = [
     category: 'AI/ML',
     pricing: { basePrice: '0.005', currency: 'USDC', model: 'per-call' },
     provider: {
-      address: EIGENCLOUD_WALLET,
+      address: EIGENCLOUD_WALLET.address,
       name: 'Synapse AI',
       verified: true,
       reputation: 5.0
@@ -178,7 +176,7 @@ const AVAILABLE_TOOLS: RegisteredTool[] = [
     category: 'AI/ML',
     pricing: { basePrice: '0.01', currency: 'USDC', model: 'per-call' },
     provider: {
-      address: EIGENCLOUD_WALLET,
+      address: EIGENCLOUD_WALLET.address,
       name: 'Synapse AI',
       verified: true,
       reputation: 5.0

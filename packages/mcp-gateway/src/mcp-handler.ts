@@ -11,6 +11,7 @@ import type {
   MCPError,
   MCPErrorCode,
   MCPSession,
+  MCPSessionIdentity,
   ToolCallArgs,
   ToolExecutionResult,
   SynapseAuthParams,
@@ -19,6 +20,7 @@ import type {
 import { getSessionManager, SessionManager } from './session-manager.js';
 import { getToolGenerator, ToolGenerator, toolNameToIntentType } from './tool-generator.js';
 import { X402Integration, X402IntegrationConfig, getX402Integration } from './x402-integration.js';
+import { MCPIdentityFactory, getMCPIdentityFactory, type MCPIdentity, type MCPIdentityWithWallet } from '@synapse/mcp-x402';
 
 const API_URL = process.env.SYNAPSE_API_URL || 'http://localhost:3001';
 
@@ -56,14 +58,17 @@ export class MCPHandler extends EventEmitter {
   private sessionManager: SessionManager;
   private toolGenerator: ToolGenerator;
   private x402: X402Integration;
+  private identityFactory: MCPIdentityFactory;
   private sessionId: string | null = null;
   private paymentHeader: string | undefined = undefined;
+  private currentIdentity: MCPIdentityWithWallet | null = null;
 
   constructor(x402Config?: Partial<X402IntegrationConfig>) {
     super();
     this.sessionManager = getSessionManager();
     this.toolGenerator = getToolGenerator();
     this.x402 = getX402Integration();
+    this.identityFactory = getMCPIdentityFactory();
 
     // Set up x402 event forwarding
     this.x402.on('payment:required', (tool, requirements) => {
@@ -91,7 +96,7 @@ export class MCPHandler extends EventEmitter {
     try {
       switch (request.method) {
         case 'initialize':
-          return this.handleInitialize(request);
+          return await this.handleInitialize(request);
         case 'ping':
           return this.handlePing(request);
         case 'tools/list':
@@ -134,20 +139,68 @@ export class MCPHandler extends EventEmitter {
   }
 
   /**
-   * Handle initialize request
+   * Handle initialize request - auto-creates wallet identity
    */
-  private handleInitialize(request: MCPRequest): MCPResponse {
+  private async handleInitialize(request: MCPRequest): Promise<MCPResponse> {
     const params = request.params as {
       protocolVersion?: string;
       clientInfo?: { name: string; version: string };
       capabilities?: Record<string, unknown>;
+      // Synapse extensions - optional identity restoration
+      _synapse?: {
+        privateKey?: string;  // Restore existing identity
+        budget?: number;
+      };
     };
 
-    // Create session
-    const session = this.sessionManager.createSession(
-      params?.clientInfo || { name: 'unknown', version: '0.0.0' }
-    );
+    const clientInfo = params?.clientInfo || { name: 'unknown', version: '0.0.0' };
+
+    // Auto-create wallet identity for this MCP client
+    let identity: MCPIdentityWithWallet;
+    try {
+      if (params?._synapse?.privateKey) {
+        // Restore existing identity from private key
+        identity = await this.identityFactory.restoreIdentity(
+          params._synapse.privateKey,
+          clientInfo.name
+        );
+        console.log(`[MCP Handler] Restored identity: ${identity.address}`);
+      } else {
+        // Create new identity for this client
+        identity = await this.identityFactory.getOrCreateIdentity(clientInfo.name);
+        console.log(`[MCP Handler] Created identity: ${identity.address}`);
+      }
+      this.currentIdentity = identity;
+    } catch (error) {
+      console.error('[MCP Handler] Failed to create identity:', error);
+      return this.errorResponse(
+        request.id,
+        -32603,
+        `Failed to create wallet identity: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+
+    // Create session with identity
+    const session = this.sessionManager.createSession(clientInfo, {
+      walletAddress: identity.address,
+      budget: params?._synapse?.budget || 10.0,
+    });
     this.sessionId = session.id;
+
+    // Store identity in session
+    session.identity = {
+      clientId: identity.clientId,
+      address: identity.address,
+      publicKey: identity.publicKey,
+      createdAt: identity.createdAt,
+      walletType: identity.walletType,
+      network: identity.network,
+    };
+
+    this.emit('identity:created', {
+      sessionId: session.id,
+      identity: session.identity,
+    });
 
     return {
       jsonrpc: '2.0',
@@ -162,14 +215,43 @@ export class MCPHandler extends EventEmitter {
           tools: {},
           resources: { subscribe: true },
           prompts: {},
+          // Synapse bilateral exchange capability
+          _synapse: {
+            billing: true,
+            bilateral: true,
+          },
         },
+        // Synapse session info with wallet identity
         _synapse: {
           sessionId: session.id,
           budget: session.budget,
-          authenticated: false,
+          authenticated: true,
+          identity: {
+            address: identity.address,
+            publicKey: identity.publicKey,
+            walletType: identity.walletType,
+            network: identity.network,
+          },
         },
       },
     };
+  }
+
+  /**
+   * Get current session identity
+   */
+  getIdentity(): MCPIdentityWithWallet | null {
+    return this.currentIdentity;
+  }
+
+  /**
+   * Export identity for persistence
+   */
+  exportIdentity(): { clientId: string; privateKey: string; network: string } | null {
+    if (!this.sessionId) return null;
+    const session = this.sessionManager.getSession(this.sessionId);
+    if (!session?.identity) return null;
+    return this.identityFactory.exportIdentity(session.identity.clientId);
   }
 
   /**

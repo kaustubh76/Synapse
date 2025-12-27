@@ -19,6 +19,9 @@ import { setupEscrowRoutes } from './routes/escrow.js';
 import { setupDisputeRoutes } from './routes/disputes.js';
 import { setupWalletRoutes } from './routes/wallet.js';
 import llmRoutes from './routes/llm.js';
+import { setupMCPRoutes } from './routes/mcp.js';
+import { setupFlowRoutes } from './routes/flow.js';
+import { setupPaymentVerificationRoutes } from './routes/payment-verification.js';
 import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
 import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine } from '@synapse/core';
@@ -28,7 +31,7 @@ import { seedDemoProviders } from './seed/demo-providers.js';
 dotenv.config();
 
 const PORT = process.env.PORT || 3001;
-const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
+const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
 
 async function main() {
   // Create Express app
@@ -38,7 +41,7 @@ async function main() {
   // Create Socket.IO server
   const io = new SocketIOServer(httpServer, {
     cors: {
-      origin: CORS_ORIGIN,
+      origin: ALLOWED_ORIGINS,
       methods: ['GET', 'POST'],
       credentials: true
     }
@@ -49,7 +52,16 @@ async function main() {
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   }));
   app.use(cors({
-    origin: CORS_ORIGIN,
+    origin: function (origin, callback) {
+      // Allow requests with no origin (like mobile apps or curl requests)
+      if (!origin) return callback(null, true);
+
+      if (ALLOWED_ORIGINS.indexOf(origin) === -1) {
+        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
     credentials: true
   }));
   app.use(express.json());
@@ -156,6 +168,9 @@ async function main() {
   setupDisputeRoutes(app, io);
   setupWalletRoutes(app);
   app.use('/api/llm', llmRoutes);
+  setupMCPRoutes(app, io);
+  setupFlowRoutes(app, io);
+  setupPaymentVerificationRoutes(app);
 
   // Setup WebSocket handlers
   setupWebSocket(io, intentEngine, providerRegistry);
@@ -234,6 +249,12 @@ async function main() {
 ║   • GET  /api/llm/models           - List available models         ║
 ║   • GET  /api/llm/credit/:agentId  - Get credit profile            ║
 ║   • POST /api/llm/stream/create    - Create streaming payment      ║
+║                                                                    ║
+║   🔌 MCP Bilateral Value Exchange:                                 ║
+║   • POST /api/mcp/identity/create  - Create MCP wallet identity    ║
+║   • POST /api/mcp/intent/create    - Create tool intent            ║
+║   • POST /api/mcp/bilateral/create - Create bilateral session      ║
+║   • POST /api/mcp/bilateral/:id/settle - Settle session            ║
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
     `);

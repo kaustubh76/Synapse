@@ -8,6 +8,12 @@ import {
   ChevronDown, BarChart2, ExternalLink
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  CROSSMINT_TREASURY,
+  EIGENCLOUD_WALLET,
+  USDC_ADDRESS,
+  RPC_URL
+} from '@/lib/config'
 
 interface EarningsData {
   totalEarnings: string
@@ -31,12 +37,7 @@ interface EarningsDashboardProps {
   onWithdraw?: () => void
 }
 
-// Crossmint Treasury wallet (receives all x402 payments)
-const CROSSMINT_TREASURY = '0x98280dc6fEF54De5DF58308a7c62e3003eA7F455'
-// EigenCloud wallet (pays for tool executions)
-const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
-const RPC_URL = 'https://base-sepolia.g.alchemy.com/v2/u8kBWypbBxTDpg4f8Yc2I'
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+// Wallet and contract addresses are imported from config
 
 export function EarningsDashboard({
   providerId,
@@ -392,7 +393,7 @@ export function EarningsDashboard({
                 Treasury Wallet <ExternalLink className="w-3 h-3" />
               </a>
               <a
-                href={`${explorerUrl}/address/${EIGENCLOUD_WALLET}`}
+                href={`${explorerUrl}/address/${EIGENCLOUD_WALLET.address}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-dark-400 flex items-center gap-1 hover:underline hover:text-dark-300"

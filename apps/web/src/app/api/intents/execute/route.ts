@@ -1,21 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { ethers } from 'ethers'
 
-// EigenCloud compute wallet - this executes AI tasks and receives payments
+// Configuration from environment
 const EIGENCLOUD_WALLET_ADDRESS = process.env.EIGENCLOUD_WALLET_ADDRESS || ''
 const EIGENCLOUD_PRIVATE_KEY = process.env.EIGENCLOUD_PRIVATE_KEY || ''
-const RPC_URL = 'https://sepolia.base.org'
+const NETWORK = process.env.NEXT_PUBLIC_NETWORK || 'base-sepolia'
+const RPC_URL = process.env.BASE_RPC_URL || 'https://sepolia.base.org'
 
 // deTERMinal API configuration (EigenArcade) - AI Inference
-const DETERMINAL_API_URL = 'https://determinal-api.eigenarcade.com'
-const DETERMINAL_MODEL = 'qwen3-32b-128k-bf16'
+const DETERMINAL_API_URL = process.env.DETERMINAL_API_URL || 'https://determinal-api.eigenarcade.com'
+const DETERMINAL_MODEL = process.env.DETERMINAL_MODEL || 'qwen3-32b-128k-bf16'
 
 // EigenCompute TEE configuration
-const EIGENCOMPUTE_TEE_TYPE = 'intel_tdx'
-const EIGENCOMPUTE_ENCLAVE_VERSION = '1.0'
+const EIGENCOMPUTE_TEE_TYPE = process.env.EIGENCOMPUTE_TEE_TYPE || 'intel_tdx'
+const EIGENCOMPUTE_ENCLAVE_VERSION = process.env.EIGENCOMPUTE_ENCLAVE_VERSION || '1.0'
 
-// Base Sepolia USDC contract
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+// USDC contract addresses by network
+const USDC_ADDRESSES: Record<string, string> = {
+  'base-sepolia': process.env.USDC_ADDRESS_BASE_SEPOLIA || '0x036CbD53842c5426634e7929541eC2318f3dCF7e',
+  'base': process.env.USDC_ADDRESS_BASE || '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913',
+}
+const USDC_ADDRESS = USDC_ADDRESSES[NETWORK] || USDC_ADDRESSES['base-sepolia']
 const USDC_ABI = [
   'function balanceOf(address) view returns (uint256)',
   'function transfer(address to, uint256 amount) returns (bool)',
@@ -23,7 +28,7 @@ const USDC_ABI = [
 ]
 
 // Crossmint API configuration
-const CROSSMINT_API_URL = 'https://staging.crossmint.com/api/v1-alpha2'
+const CROSSMINT_API_URL = process.env.NEXT_PUBLIC_CROSSMINT_API_URL || 'https://staging.crossmint.com/api/v1-alpha2'
 const CROSSMINT_API_KEY = process.env.CROSSMINT_API_KEY || ''
 
 // Intent type pricing in USDC
@@ -378,10 +383,10 @@ export async function POST(request: NextRequest) {
         // Submit transaction but DON'T wait for confirmation
         paymentTx = await usdcContract.transfer(treasuryWallet, priceInUnits)
         paymentStatus = 'pending'
-        console.log(`[x402 Payment] TX submitted: ${paymentTx.hash}`)
+        console.log(`[x402 Payment] TX submitted: ${paymentTx?.hash}`)
 
         // Fire and forget - confirm async in background
-        paymentTx.wait().then((receipt) => {
+        paymentTx?.wait().then((receipt) => {
           console.log(`[x402 Payment] Confirmed in block ${receipt?.blockNumber}`)
         }).catch((err) => {
           console.error(`[x402 Payment] Confirmation failed:`, err.message)

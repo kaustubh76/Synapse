@@ -55,19 +55,25 @@ export function useWallet(): WalletContextType {
     balance: '0.00',
   })
 
-  // Load wallet from storage on mount
+  // Load wallet from storage on mount (client-side only)
   useEffect(() => {
-    const stored = localStorage.getItem(STORAGE_KEY)
-    if (stored) {
-      try {
+    if (typeof window === 'undefined') return
+
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY)
+      if (stored) {
         const wallet = JSON.parse(stored) as WalletInfo
         setState(prev => ({
           ...prev,
           wallet,
           isConnected: true,
         }))
-      } catch (e) {
+      }
+    } catch (e) {
+      try {
         localStorage.removeItem(STORAGE_KEY)
+      } catch {
+        // Ignore localStorage errors
       }
     }
   }, [])
@@ -257,13 +263,22 @@ export function useWallet(): WalletContextType {
   }
 }
 
+// Default context value for SSR safety
+const defaultContextValue: WalletContextType = {
+  wallet: null,
+  isConnecting: false,
+  isConnected: false,
+  error: null,
+  balance: '0.00',
+  connect: async () => {},
+  disconnect: () => {},
+  refreshBalance: async () => {},
+  transfer: async () => ({ txHash: '', success: false }),
+}
+
 // Context for wallet state (for use with provider)
-export const WalletContext = createContext<WalletContextType | null>(null)
+export const WalletContext = createContext<WalletContextType>(defaultContextValue)
 
 export function useWalletContext(): WalletContextType {
-  const context = useContext(WalletContext)
-  if (!context) {
-    throw new Error('useWalletContext must be used within a WalletProvider')
-  }
-  return context
+  return useContext(WalletContext)
 }

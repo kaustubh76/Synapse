@@ -7,6 +7,7 @@ import {
   TrendingUp, Shield, RefreshCw, ExternalLink, Send
 } from 'lucide-react'
 import { cn, truncateAddress } from '@/lib/utils'
+import { EIGENCLOUD_WALLET, USDC_ADDRESS, RPC_URL } from '@/lib/config'
 
 interface WalletBalance {
   native: {
@@ -41,10 +42,7 @@ interface WalletDashboardProps {
   onConnect?: () => void
 }
 
-// Real wallet address from environment
-const EIGENCLOUD_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
-const RPC_URL = 'https://sepolia.base.org'
-const USDC_ADDRESS = '0x036CbD53842c5426634e7929541eC2318f3dCF7e'
+// Wallet address from config
 
 export function WalletDashboard({
   walletAddress,
@@ -148,7 +146,7 @@ export function WalletDashboard({
   }, [])
 
   useEffect(() => {
-    const address = walletAddress || EIGENCLOUD_WALLET
+    const address = walletAddress || EIGENCLOUD_WALLET.address
     if (address) {
       setIsLoading(true)
       setError(null)
@@ -163,7 +161,7 @@ export function WalletDashboard({
   }, [walletAddress, fetchBalances, fetchTransactions])
 
   const copyAddress = () => {
-    const address = walletAddress || EIGENCLOUD_WALLET
+    const address = walletAddress || EIGENCLOUD_WALLET.address
     if (address) {
       navigator.clipboard.writeText(address)
       setCopied(true)
@@ -172,7 +170,7 @@ export function WalletDashboard({
   }
 
   const refreshData = () => {
-    const address = walletAddress || EIGENCLOUD_WALLET
+    const address = walletAddress || EIGENCLOUD_WALLET.address
     if (address) {
       setIsLoading(true)
       Promise.all([
@@ -195,7 +193,7 @@ export function WalletDashboard({
     ? 'https://basescan.org'
     : 'https://sepolia.basescan.org'
 
-  const displayAddress = walletAddress || EIGENCLOUD_WALLET
+  const displayAddress = walletAddress || EIGENCLOUD_WALLET.address
 
   if (!displayAddress && !walletAddress) {
     return (
