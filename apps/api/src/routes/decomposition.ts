@@ -260,6 +260,220 @@ export function setupDecompositionRoutes(
     }
   });
 
+  // -------------------- SIMPLE DECOMPOSE (Natural Language) --------------------
+  // Easier endpoint for the MCP page - just pass an intent string
+  router.post('/simple', async (req: Request, res: Response) => {
+    try {
+      const { intent } = req.body;
+
+      if (!intent || typeof intent !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'intent string is required'
+          },
+          timestamp: Date.now()
+        });
+      }
+
+      // Parse natural language intent into structured format
+      const parsed = parseNaturalIntent(intent);
+
+      const plan = decomposer.decompose(parsed);
+
+      // Add tool pricing estimates
+      const enrichedSubIntents = plan.subIntents.map(si => ({
+        ...si,
+        estimatedCost: getToolPrice(si.type),
+        toolName: si.type
+      }));
+
+      res.json({
+        success: true,
+        data: {
+          planId: plan.id,
+          originalIntent: intent,
+          parsedAs: parsed.type,
+          subIntents: enrichedSubIntents,
+          executionPlan: {
+            batches: plan.executionOrder.map((batch, i) => ({
+              batchNumber: i + 1,
+              parallel: batch.length > 1,
+              intents: batch.map(id => enrichedSubIntents.find(si => si.id === id))
+            }))
+          },
+          totalEstimatedCost: enrichedSubIntents.reduce((sum, si) => sum + (si.estimatedCost || 0), 0),
+          estimatedTimeMs: plan.estimatedTime
+        },
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('Error in simple decompose:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'DECOMPOSE_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to decompose intent'
+        },
+        timestamp: Date.now()
+      });
+    }
+  });
+
   // Mount router
   app.use('/api/decomposition', router);
+}
+
+// Helper: Parse natural language intent
+function parseNaturalIntent(intent: string): {
+  type: string;
+  category: IntentCategory;
+  params: Record<string, unknown>;
+  maxBudget: number;
+} {
+  const lower = intent.toLowerCase();
+
+  // Check for crypto patterns
+  const cryptoMatch = lower.match(/(?:get|fetch|show)\s+(?:the\s+)?(?:price(?:s)?|value(?:s)?)\s+(?:of|for)?\s*([\w,\s]+?)(?:\s+and|\s+with|\s*$)/i);
+  const cryptoSymbols = extractCryptoSymbols(intent);
+
+  // Check for weather patterns
+  const weatherMatch = lower.match(/weather\s+(?:in|for|at)\s+([a-zA-Z\s,]+)/i);
+  const cities = weatherMatch ? weatherMatch[1].split(/,|\s+and\s+/).map(c => c.trim()).filter(Boolean) : [];
+
+  // Check for news patterns
+  const newsMatch = lower.match(/(?:latest|recent|top|get)\s+(?:crypto|cryptocurrency|blockchain|tech|technology)?\s*news/i);
+
+  // Determine intent type based on patterns
+  if (cryptoSymbols.length > 1 || (cryptoSymbols.length === 1 && (lower.includes('news') || cities.length > 0))) {
+    // Multi-type intent
+    const types: string[] = [];
+    const params: Record<string, unknown> = {};
+
+    if (cryptoSymbols.length > 0) {
+      types.push('crypto.prices');
+      params.symbols = cryptoSymbols;
+    }
+
+    if (cities.length > 0) {
+      types.push('weather.multi');
+      params.cities = cities;
+    }
+
+    if (newsMatch || lower.includes('news')) {
+      types.push('news.latest');
+      params.topic = lower.includes('crypto') ? 'cryptocurrency' : 'technology';
+    }
+
+    return {
+      type: types.length > 1 ? types.join('+') : types[0] || 'unknown',
+      category: IntentCategory.DATA,
+      params,
+      maxBudget: types.length * 0.02
+    };
+  }
+
+  // Dashboard pattern
+  if (lower.includes('dashboard') || (cryptoSymbols.length > 0 && lower.includes('news'))) {
+    return {
+      type: 'dashboard.crypto',
+      category: IntentCategory.DATA,
+      params: { symbols: cryptoSymbols.length > 0 ? cryptoSymbols : ['BTC', 'ETH'] },
+      maxBudget: 0.05
+    };
+  }
+
+  // Single crypto
+  if (cryptoSymbols.length === 1) {
+    return {
+      type: 'crypto.price',
+      category: IntentCategory.DATA,
+      params: { symbol: cryptoSymbols[0] },
+      maxBudget: 0.01
+    };
+  }
+
+  // Weather
+  if (cities.length > 0) {
+    return {
+      type: cities.length > 1 ? 'weather.multi' : 'weather.current',
+      category: IntentCategory.DATA,
+      params: cities.length > 1 ? { cities } : { city: cities[0] },
+      maxBudget: cities.length * 0.01
+    };
+  }
+
+  // News
+  if (newsMatch) {
+    return {
+      type: 'news.latest',
+      category: IntentCategory.DATA,
+      params: { topic: lower.includes('crypto') ? 'cryptocurrency' : 'technology' },
+      maxBudget: 0.01
+    };
+  }
+
+  // Default fallback
+  return {
+    type: 'unknown',
+    category: IntentCategory.DATA,
+    params: { raw: intent },
+    maxBudget: 0.01
+  };
+}
+
+// Helper: Extract crypto symbols from text
+function extractCryptoSymbols(text: string): string[] {
+  const knownSymbols = ['BTC', 'ETH', 'SOL', 'USDC', 'USDT', 'XRP', 'ADA', 'DOT', 'DOGE', 'LINK', 'AVAX', 'MATIC', 'UNI', 'ATOM', 'LTC'];
+  const found: string[] = [];
+
+  // Check for explicit symbols
+  for (const symbol of knownSymbols) {
+    if (text.toUpperCase().includes(symbol)) {
+      found.push(symbol);
+    }
+  }
+
+  // Check for full names
+  const nameToSymbol: Record<string, string> = {
+    'bitcoin': 'BTC',
+    'ethereum': 'ETH',
+    'solana': 'SOL',
+    'ripple': 'XRP',
+    'cardano': 'ADA',
+    'polkadot': 'DOT',
+    'dogecoin': 'DOGE',
+    'chainlink': 'LINK',
+    'avalanche': 'AVAX',
+    'polygon': 'MATIC',
+    'uniswap': 'UNI',
+    'cosmos': 'ATOM',
+    'litecoin': 'LTC'
+  };
+
+  const lower = text.toLowerCase();
+  for (const [name, symbol] of Object.entries(nameToSymbol)) {
+    if (lower.includes(name) && !found.includes(symbol)) {
+      found.push(symbol);
+    }
+  }
+
+  return found;
+}
+
+// Helper: Get tool price
+function getToolPrice(toolType: string): number {
+  const prices: Record<string, number> = {
+    'weather.current': 0.005,
+    'weather.multi': 0.005,
+    'crypto.price': 0.003,
+    'crypto.prices': 0.003,
+    'news.latest': 0.005,
+    'news.search': 0.005,
+    'dashboard.crypto': 0.015,
+    'dashboard.portfolio': 0.015,
+    'dashboard.market': 0.015
+  };
+  return prices[toolType] || 0.01;
 }
