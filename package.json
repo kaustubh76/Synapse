@@ -7,8 +7,7 @@
   "license": "MIT",
   "workspaces": [
     "apps/*",
-    "packages/*",
-    "providers/*"
+    "packages/*"
   ],
   "scripts": {
     "dev": "turbo run dev",
@@ -17,8 +16,7 @@
     "lint": "turbo run lint",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run dev --workspace=apps/api",
-    "dev:providers": "npm run dev --workspace=providers/weather-bot & npm run dev --workspace=providers/crypto-bot & npm run dev --workspace=providers/news-bot",
-    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\" \"npm run dev:providers\""
+    "dev:all": "concurrently \"npm run dev:api\" \"npm run dev:web\""
   },
   "devDependencies": {
     "concurrently": "^8.2.2",
