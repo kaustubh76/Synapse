@@ -1,10 +1,12 @@
 // ============================================================
 // SYNAPSE API - Wallet Routes
 // Crossmint wallet integration for x402 payments
+// Real on-chain USDC balance queries via Base Sepolia
 // ============================================================
 
 import { Router, Request, Response } from 'express';
 import { createCrossmintWallet, createDemoCrossmintWallet, CrossmintWallet } from '@synapse/sdk';
+import { getUSDCTransfer } from '@synapse/mcp-x402';
 
 const router = Router();
 
@@ -254,6 +256,56 @@ router.post('/sign', async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       error: { code: 'SIGN_ERROR', message: 'Failed to sign message' },
+    });
+  }
+});
+
+/**
+ * Get REAL on-chain balance (Base Sepolia)
+ * GET /api/wallet/:address/onchain-balance
+ */
+router.get('/:address/onchain-balance', async (req: Request, res: Response) => {
+  try {
+    const { address } = req.params;
+
+    // Validate address format
+    if (!address.match(/^0x[a-fA-F0-9]{40}$/)) {
+      return res.status(400).json({
+        success: false,
+        error: { code: 'INVALID_ADDRESS', message: 'Invalid Ethereum address format' },
+      });
+    }
+
+    // Get real on-chain balance from Base Sepolia
+    const usdcTransfer = getUSDCTransfer();
+    const walletBalance = await usdcTransfer.getWalletBalance(address);
+
+    res.json({
+      success: true,
+      data: {
+        address,
+        usdc: walletBalance.usdc,
+        usdcWei: walletBalance.usdcWei.toString(),
+        eth: walletBalance.eth,
+        ethWei: walletBalance.ethWei.toString(),
+        network: 'base-sepolia',
+        chainId: 84532,
+        usdcContract: usdcTransfer.getUSDCAddress(),
+        note: 'Real on-chain balances from Base Sepolia',
+        faucets: {
+          eth: 'https://www.coinbase.com/faucets/base-sepolia',
+          usdc: 'https://faucet.circle.com/',
+        },
+      },
+    });
+  } catch (error) {
+    console.error('[Wallet] On-chain balance error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'BALANCE_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to fetch on-chain balance'
+      },
     });
   }
 });

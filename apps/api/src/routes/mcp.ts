@@ -7,6 +7,7 @@ import { Router, Request, Response } from 'express';
 import { Server as SocketIOServer } from 'socket.io';
 import {
   getMCPToolBridge,
+  getRealToolProvider,
   type MCPToolRequest,
   type MCPToolProvider,
 } from '@synapse/core';
@@ -139,6 +140,115 @@ router.get('/identity/:clientId', async (req: Request, res: Response) => {
       error: {
         code: 'IDENTITY_NOT_FOUND',
         message: 'Identity not found',
+      },
+      timestamp: Date.now(),
+    });
+  }
+});
+
+// ============================================================
+// MCP TOOL DIRECT EXECUTION (REAL APIS)
+// ============================================================
+
+/**
+ * GET /api/mcp/tools
+ * List all available real tools
+ */
+router.get('/tools', (_req: Request, res: Response) => {
+  try {
+    const tools = [
+      {
+        name: 'weather.current',
+        description: 'Get current weather for a city (Open-Meteo API)',
+        inputSchema: { city: 'string' },
+        pricing: 0.005,
+      },
+      {
+        name: 'crypto.price',
+        description: 'Get current crypto price (CoinGecko API)',
+        inputSchema: { symbol: 'string (BTC, ETH, SOL, etc.)' },
+        pricing: 0.003,
+      },
+      {
+        name: 'news.latest',
+        description: 'Get latest news (HackerNews API)',
+        inputSchema: { query: 'string (optional)' },
+        pricing: 0.005,
+      },
+    ];
+
+    res.json({
+      success: true,
+      data: {
+        tools,
+        count: tools.length,
+        note: 'These tools call REAL external APIs',
+      },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'TOOLS_LIST_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      timestamp: Date.now(),
+    });
+  }
+});
+
+/**
+ * POST /api/mcp/tools/execute
+ * Execute a tool directly (calls real APIs)
+ */
+router.post('/tools/execute', async (req: Request, res: Response) => {
+  try {
+    const { toolName, toolInput } = req.body;
+
+    if (!toolName) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'MISSING_TOOL_NAME',
+          message: 'toolName is required',
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    console.log(`[MCP] Executing real tool: ${toolName}`, toolInput);
+
+    const toolProvider = getRealToolProvider();
+    const result = await toolProvider.executeTool(toolName, toolInput || {});
+
+    if (!result.success) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'TOOL_EXECUTION_FAILED',
+          message: result.error,
+        },
+        latencyMs: result.latencyMs,
+        source: result.source,
+        timestamp: Date.now(),
+      });
+    }
+
+    res.json({
+      success: true,
+      data: result.data,
+      latencyMs: result.latencyMs,
+      source: result.source,
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    console.error('[MCP] Tool execution error:', error);
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'TOOL_EXECUTION_ERROR',
+        message: error instanceof Error ? error.message : 'Unknown error',
       },
       timestamp: Date.now(),
     });
