@@ -258,7 +258,7 @@ export default function DemoPage() {
     }
   }
 
-  // Step 3: Select Model & Pay
+  // Step 3: Select Model & Pay - REAL USDC PAYMENT
   const selectModel = async (bid: LLMBid) => {
     if (!llmIntent || !identity || !session) return
 
@@ -267,18 +267,38 @@ export default function DemoPage() {
     setError(null)
 
     try {
-      // Simulate payment (in production, this would be real USDC transfer)
-      const mockTxHash = '0x' + Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join('')
+      const paymentAmount = 0.005 // LLM selection cost
 
-      // Record selection with payment
+      // Execute REAL USDC payment via flow API
+      const flowStartResponse = await fetch(`${API_URL}/api/flow/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          toolName: `llm.${bid.modelId}`,
+          amount: paymentAmount,
+          clientAddress: identity.address
+        })
+      })
+      const flowStartData = await flowStartResponse.json()
+
+      let realTxHash = null
+      if (flowStartData.success) {
+        const paymentResponse = await fetch(`${API_URL}/api/flow/${flowStartData.data.flowSessionId}/pay`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ amount: paymentAmount })
+        })
+        const paymentData = await paymentResponse.json()
+        realTxHash = paymentData.success ? paymentData.data?.txHash : null
+      }
+
+      // Record selection with real payment TX hash
       const response = await fetch(`${API_URL}/api/llm/intent/${llmIntent.id}/select`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modelId: bid.modelId,
-          paymentTxHash: mockTxHash,
+          paymentTxHash: realTxHash || 'pending',
           clientAddress: identity.address
         })
       })
@@ -286,32 +306,35 @@ export default function DemoPage() {
       const data = await response.json()
 
       if (data.success) {
-        setPaymentTxHash(mockTxHash)
+        setPaymentTxHash(realTxHash)
 
         // Record in bilateral session
         await fetch(`${API_URL}/api/mcp/bilateral/${session.sessionId}/client-payment`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            amount: 0.005, // Selection cost
+            amount: paymentAmount,
             resource: `llm.${bid.modelId}`
           })
         })
 
-        // Update session
+        // Update session with real TX hash
         const tx: SessionTransaction = {
           id: `tx_${Date.now()}`,
           type: 'llm',
           resource: bid.modelId,
-          amount: 0.005,
-          txHash: mockTxHash,
+          amount: paymentAmount,
+          txHash: realTxHash || undefined,
           timestamp: Date.now()
         }
         setSession(prev => prev ? {
           ...prev,
           transactions: [...prev.transactions, tx],
-          totalSpent: prev.totalSpent + 0.005
+          totalSpent: prev.totalSpent + paymentAmount
         } : null)
+
+        // Refresh wallet balance after payment
+        await fetchBalance(identity.address)
 
         // Check if LLM response suggests tool usage
         const toolCalls = parseToolCalls(bid.response)
@@ -356,7 +379,7 @@ export default function DemoPage() {
     return tools
   }
 
-  // Step 4: Execute MCP Tools
+  // Step 4: Execute MCP Tools - REAL API CALLS
   const executeTools = async (toolCalls: { name: string; params: any }[]) => {
     if (!session || !identity) return
 
@@ -366,27 +389,45 @@ export default function DemoPage() {
 
     for (const tool of toolCalls) {
       try {
-        // Create tool intent
-        const intentResponse = await fetch(`${API_URL}/api/mcp/intent/create`, {
+        const toolCost = 0.001
+
+        // Execute REAL tool via API
+        const toolResponse = await fetch(`${API_URL}/api/mcp/tools/execute`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             toolName: tool.name,
-            toolInput: tool.params,
-            maxBudget: 0.01,
-            clientAddress: identity.address
+            input: tool.params
           })
         })
 
-        const intentData = await intentResponse.json()
+        const toolData = await toolResponse.json()
 
-        if (intentData.success) {
-          // Simulate tool execution and payment
-          const mockToolTxHash = '0x' + Array.from({ length: 64 }, () =>
-            Math.floor(Math.random() * 16).toString(16)
-          ).join('')
+        if (toolData.success) {
+              // Execute REAL USDC payment via flow API
+          // First start a flow session
+          const flowStartResponse = await fetch(`${API_URL}/api/flow/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              toolName: tool.name,
+              amount: toolCost,
+              clientAddress: identity.address
+            })
+          })
+          const flowStartData = await flowStartResponse.json()
 
-          const toolCost = 0.001
+          let realTxHash = null
+          if (flowStartData.success) {
+            // Execute the payment
+            const paymentResponse = await fetch(`${API_URL}/api/flow/${flowStartData.data.flowSessionId}/pay`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount: toolCost })
+            })
+            const paymentData = await paymentResponse.json()
+            realTxHash = paymentData.success ? paymentData.data?.txHash : null
+          }
 
           // Record in bilateral session
           await fetch(`${API_URL}/api/mcp/bilateral/${session.sessionId}/client-payment`, {
@@ -400,20 +441,20 @@ export default function DemoPage() {
 
           const result: ToolResult = {
             toolName: tool.name,
-            output: generateMockToolOutput(tool.name, tool.params),
+            output: toolData.data?.result || toolData.data, // Real data from API
             cost: toolCost,
-            latency: Math.floor(Math.random() * 500) + 100,
-            txHash: mockToolTxHash
+            latency: toolData.data?.latency || 0, // Real latency
+            txHash: realTxHash || undefined
           }
           results.push(result)
 
-          // Update session
+          // Update session with real TX hash
           const tx: SessionTransaction = {
             id: `tx_${Date.now()}`,
             type: 'tool',
             resource: tool.name,
             amount: toolCost,
-            txHash: mockToolTxHash,
+            txHash: realTxHash || undefined,
             timestamp: Date.now()
           }
           setSession(prev => prev ? {
@@ -421,6 +462,11 @@ export default function DemoPage() {
             transactions: [...prev.transactions, tx],
             totalSpent: prev.totalSpent + toolCost
           } : null)
+
+          // Refresh wallet balance after payment
+          if (identity) {
+            await fetchBalance(identity.address)
+          }
         }
       } catch (err) {
         console.error('Tool execution error:', err)
@@ -432,27 +478,6 @@ export default function DemoPage() {
     setCurrentStep('summary')
   }
 
-  // Generate mock tool output
-  const generateMockToolOutput = (toolName: string, params: any) => {
-    if (toolName === 'weather.current') {
-      return {
-        city: params.city || 'New York',
-        temperature: Math.floor(Math.random() * 30) + 10,
-        condition: ['Sunny', 'Cloudy', 'Partly Cloudy', 'Rainy'][Math.floor(Math.random() * 4)],
-        humidity: Math.floor(Math.random() * 50) + 30,
-        wind: Math.floor(Math.random() * 20) + 5
-      }
-    }
-    if (toolName === 'crypto.price') {
-      const prices: Record<string, number> = { BTC: 45000, ETH: 2500 }
-      return {
-        symbol: params.symbol || 'BTC',
-        price: prices[params.symbol] || 45000,
-        change24h: (Math.random() * 10 - 5).toFixed(2)
-      }
-    }
-    return { data: 'Mock data' }
-  }
 
   // Step 5: Settle Session
   const settleSession = async () => {
@@ -978,16 +1003,31 @@ export default function DemoPage() {
                 {showTransactions && (
                   <div className="space-y-2 mb-4">
                     {session.transactions.map((tx) => (
-                      <div key={tx.id} className={`flex items-center justify-between p-3 rounded-lg ${
+                      <div key={tx.id} className={`p-3 rounded-lg ${
                         tx.type === 'llm' ? 'bg-purple-900/20 border border-purple-500/20' : 'bg-orange-900/20 border border-orange-500/20'
                       }`}>
-                        <div className="flex items-center gap-3">
-                          {tx.type === 'llm' ? <Brain className="w-5 h-5 text-purple-400" /> : <Plug className="w-5 h-5 text-orange-400" />}
-                          <span className="text-white">{tx.resource}</span>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            {tx.type === 'llm' ? <Brain className="w-5 h-5 text-purple-400" /> : <Plug className="w-5 h-5 text-orange-400" />}
+                            <span className="text-white">{tx.resource}</span>
+                          </div>
+                          <span className={`font-mono ${tx.type === 'llm' ? 'text-purple-400' : 'text-orange-400'}`}>
+                            ${tx.amount.toFixed(4)}
+                          </span>
                         </div>
-                        <span className={`font-mono ${tx.type === 'llm' ? 'text-purple-400' : 'text-orange-400'}`}>
-                          ${tx.amount.toFixed(4)}
-                        </span>
+                        {tx.txHash && tx.txHash.startsWith('0x') && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <a
+                              href={`https://sepolia.basescan.org/tx/${tx.txHash}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                            >
+                              <ExternalLink className="w-3 h-3" />
+                              View on BaseScan: {tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
+                            </a>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
