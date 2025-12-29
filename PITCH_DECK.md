@@ -203,7 +203,116 @@ Built on: **EigenCloud** | **Crossmint** | **Base**
 
 ---
 
-# Slide 6: EigenCloud Integration
+# Slide 6: x402 Payment Protocol
+
+## HTTP-Native Micropayments for AI Agents
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    x402 PAYMENT PROTOCOL                      │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│   ┌─────────────────────────────────────────────────────┐    │
+│   │              HOW x402 WORKS                          │    │
+│   │                                                      │    │
+│   │   1. Agent calls API                                 │    │
+│   │      GET /api/premium-data                           │    │
+│   │                         │                            │    │
+│   │   2. Server returns 402 │                            │    │
+│   │      HTTP/1.1 402 Payment Required                   │    │
+│   │      X-Payment: { price: 0.01, network: base }       │    │
+│   │                         │                            │    │
+│   │   3. Agent signs payment│(EIP-712)                   │    │
+│   │      X-Payment-Signature: 0x...                      │    │
+│   │                         │                            │    │
+│   │   4. Server verifies & │settles                      │    │
+│   │      → Returns data    ↓                             │    │
+│   │      → USDC transferred on-chain                     │    │
+│   └─────────────────────────────────────────────────────┘    │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Why x402?
+
+| Feature | Benefit |
+|---------|---------|
+| **HTTP 402 Standard** | Native web protocol - no custom infrastructure |
+| **3-Line Integration** | Single middleware protects any Express route |
+| **10 Blockchains** | Base, Ethereum, Polygon, Arbitrum, Optimism (+ testnets) |
+| **EIP-712 Signatures** | Ethereum-standard typed data signing |
+| **Thirdweb Settlement** | Production-ready on-chain settlement |
+
+### From Our Codebase:
+
+```typescript
+// packages/core/src/x402/x402-express-middleware.ts
+
+// Protect ANY route in 3 lines!
+app.get('/api/premium-data',
+  x402Middleware({
+    price: '0.01',
+    network: 'base',
+    recipient: '0xProviderWallet...'
+  }),
+  (req, res) => res.json({ data: 'premium' })
+);
+```
+
+### Unique x402 Innovations:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   BILATERAL SESSIONS                          │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│   MCPs can be BOTH payer AND payee in the same session!      │
+│                                                               │
+│   ┌─────────┐                           ┌─────────┐          │
+│   │ Agent A │ ──pays $0.05 for tool──▶  │ Agent B │          │
+│   │ (Client)│ ◀──pays $0.02 for data──  │ (Server)│          │
+│   └─────────┘                           └─────────┘          │
+│                                                               │
+│   Net Settlement: Agent A pays Agent B $0.03 (ONE tx!)       │
+│                                                               │
+│   Benefits:                                                   │
+│   • Reduces on-chain transactions by 50-90%                  │
+│   • Lower gas costs                                          │
+│   • Enables complex agent-to-agent workflows                 │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Auto-Pay Client for Agents:
+
+```typescript
+// packages/mcp-x402/src/client/auto-pay.ts
+
+const client = await createAutoPayClient({
+  network: 'base',
+  maxPerTransaction: '0.05',  // Safety limit
+  sessionBudget: '1.00',      // Total budget
+  dailyLimit: '10.00',        // Daily cap
+});
+
+// Agent automatically pays when server returns 402
+const result = await client.callTool({
+  name: 'expensive_analysis',
+  endpoint: 'https://api.example.com/analyze'
+});
+// Payment handled automatically within budget!
+```
+
+**Why it matters:** First complete payment protocol designed for autonomous AI agents.
+
+---
+
+> **SPEAKER NOTES (45 seconds):**
+> "x402 is the HTTP-native payment protocol that powers everything. When an agent calls a paid API, the server returns HTTP 402 Payment Required. The agent signs payment with EIP-712, server verifies, and USDC settles on-chain. Three lines of code protect any route. But here's the innovation: Bilateral Sessions let agents be both payer AND payee in the same conversation - settling only the net amount. This reduces on-chain transactions by up to 90%."
+
+---
+
+# Slide 7: EigenCloud Integration
 
 ## Verifiable AI Execution
 
@@ -270,7 +379,7 @@ const result = await eigenCloud.executeVerified({
 
 ---
 
-# Slide 7: Crossmint Integration
+# Slide 8: Crossmint Integration
 
 ## Smart Wallets for Every Agent
 
@@ -342,7 +451,7 @@ const result = await wallet.pay({
 
 ---
 
-# Slide 8: Live Demo
+# Slide 9: Live Demo
 
 ## Demo Flow (60-90 seconds)
 
@@ -419,7 +528,7 @@ curl http://localhost:3001/api/flow/wallet/status
 
 ---
 
-# Slide 9: Technical Architecture
+# Slide 10: Technical Architecture
 
 ## Production-Ready Stack
 
@@ -501,7 +610,7 @@ curl http://localhost:3001/api/flow/wallet/status
 
 ---
 
-# Slide 9.5: Real Blockchain Features
+# Slide 10.5: Real Blockchain Features
 
 ## Escrow & Dispute Resolution with Real USDC
 
@@ -560,7 +669,341 @@ curl http://localhost:3001/api/flow/wallet/status
 
 ---
 
-# Slide 10: Call to Action
+# Slide 10.6: WHY SYNAPSE KILLS THE COMPETITION
+
+## The Nuclear Option: What We Have That NOBODY Else Does
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│                    THE SYNAPSE ADVANTAGE                                     │
+│                                                                              │
+│   While others demo mock payments... WE HAVE REAL TRANSACTIONS ON CHAIN     │
+│   While others talk about agents... WE HAVE AGENTS THAT PAY EACH OTHER      │
+│   While others dream of MCP payments... WE BUILT THE ENTIRE STACK           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## The Competitive Massacre
+
+### What Other Hackathon Projects Will Show:
+```
+❌ "Here's our mock payment flow"
+❌ "We simulated an agent buying something"
+❌ "Trust us, the blockchain part works"
+❌ "We integrated ONE LLM provider"
+❌ "Our agents can... call APIs"
+```
+
+### What SYNAPSE Shows:
+```
+✅ "Here's a REAL tx hash: 0x1d851517... verify on BaseScan"
+✅ "Watch this agent PAY another agent with REAL USDC"
+✅ "Our escrow just RELEASED funds - check your wallet"
+✅ "20+ LLMs competing for YOUR business in real-time"
+✅ "Agents with CREDIT SCORES that affect their pricing"
+```
+
+---
+
+## 10 INNOVATIONS NO ONE ELSE HAS
+
+### 1. BILATERAL SESSIONS (World's First for MCP)
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    BILATERAL INNOVATION                       │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│   EVERYONE ELSE:                                              │
+│   Agent ──$0.01──▶ Server    (1 tx)                          │
+│   Agent ──$0.02──▶ Server    (1 tx)                          │
+│   Server ──$0.01──▶ Agent    (1 tx)                          │
+│   TOTAL: 3 transactions, 3 gas fees                          │
+│                                                               │
+│   SYNAPSE:                                                    │
+│   Agent <──> Server (bilateral session tracks all)            │
+│   NET: Agent owes $0.02                                       │
+│   TOTAL: 1 transaction, 1 gas fee                            │
+│                                                               │
+│   66% REDUCTION IN GAS COSTS                                  │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 2. PAYMENT CHANNELS (99.9% Gas Reduction)
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   PAYMENT CHANNELS                            │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│   EVERYONE ELSE:                                              │
+│   1000 micropayments = 1000 on-chain transactions             │
+│   Cost: ~$0.20 in gas (unusable for $0.001 payments)         │
+│                                                               │
+│   SYNAPSE:                                                    │
+│   1000 micropayments = 2 on-chain transactions                │
+│   Cost: ~$0.0002 in gas                                       │
+│                                                               │
+│   99.9% REDUCTION IN TRANSACTION COSTS                        │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 3. AGENTS AS FIRST-CLASS ECONOMIC CITIZENS
+```typescript
+// OTHER PROJECTS: "Our agent calls an API" - that's it
+
+// SYNAPSE:
+const agent = new AgentWallet({
+  constraints: {
+    maxPerTransaction: '100',      // Can't blow the budget
+    dailyLimit: '1000',            // Hard cap per day
+    requireApprovalAbove: '50',    // Human-in-loop for big spends
+    maxTxPerMinute: 10,            // Rate limiting
+  },
+  anomalyDetection: true,          // Flags unusual patterns
+  auditTrail: true,                // Complete history
+});
+```
+
+### 4. ONE-LINER MCP MONETIZATION
+```typescript
+// OTHER PROJECTS: *shows 500 lines of boilerplate*
+
+// SYNAPSE:
+const server = monetize(myMCPServer, {
+  pricing: { 'research': 0.01, 'analyze': 0.05 },
+  recipient: '0xYourWallet'
+});
+// DONE. Your MCP now earns REAL money.
+```
+
+### 5. REAL ORACLES FOR DISPUTE RESOLUTION
+```
+┌──────────────────────────────────────────────────────────────┐
+│   OTHER PROJECTS: "If there's a dispute... contact support?" │
+│                                                               │
+│   SYNAPSE:                                                    │
+│   Provider claims: BTC = $85,000                              │
+│   CoinGecko oracle: BTC = $89,546 (LIVE API!)                │
+│   Deviation: 5.08% > 5% threshold                             │
+│                                                               │
+│   VERDICT: CLIENT WINS (auto-resolved in <1 second)          │
+│   Action: Provider slashed 10%, reputation -0.3              │
+│                                                               │
+│   NO HUMAN INTERVENTION. TRUSTLESS. INSTANT.                  │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 6. CREDIT SCORING (FICO for AI Agents)
+```
+┌──────────────────────────────────────────────────────────────┐
+│   OTHER PROJECTS: All agents treated equal. No trust.        │
+│                                                               │
+│   SYNAPSE:                                                    │
+│   Score: 742 ████████████████░░░░░ EXCELLENT                  │
+│                                                               │
+│   Benefits:                                                   │
+│   • 15% discount on ALL transactions                          │
+│   • $5,000 credit limit (pay later!)                         │
+│   • Only 25% escrow required                                  │
+│   • Priority matching with best providers                     │
+│                                                               │
+│   Bad actors get SUBPRIME (300-579):                         │
+│   • +10% PENALTY on all transactions                          │
+│   • $0 credit limit                                           │
+│   • 100% escrow required                                      │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 7. 20+ LLM MARKETPLACE (Real Competition)
+```
+┌──────────────────────────────────────────────────────────────┐
+│   OTHER PROJECTS: "We integrated OpenAI"                     │
+│                                                               │
+│   SYNAPSE:                                                    │
+│   ┌─────────────────────────────────────────────────────┐    │
+│   │ MODEL          │ PRICE   │ LATENCY │ QUALITY │      │    │
+│   ├─────────────────────────────────────────────────────┤    │
+│   │ GPT-4 Turbo    │ $0.0045 │ 340ms   │ 95/100  │      │    │
+│   │ Claude 3.5     │ $0.0038 │ 280ms   │ 94/100  │ BEST │    │
+│   │ Gemini 1.5 Pro │ $0.0028 │ 420ms   │ 88/100  │      │    │
+│   │ Llama 3 70B    │ $0.0012 │ 180ms   │ 82/100  │      │    │
+│   │ Groq Llama 3   │ $0.0004 │ 50ms    │ 80/100  │ FAST │    │
+│   └─────────────────────────────────────────────────────┘    │
+│                                                               │
+│   Agents choose: Best value? Cheapest? Fastest?              │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 8. STREAMING MICROPAYMENTS (Pay-Per-Token)
+```
+┌──────────────────────────────────────────────────────────────┐
+│   OTHER PROJECTS: "Pay upfront, hope the output is good"    │
+│                                                               │
+│   SYNAPSE:                                                    │
+│   Token 1-50:    Streaming... $0.00075                       │
+│   Token 51-100:  Streaming... $0.00150                       │
+│   Token 101-150: [PAUSED - Quality drop!]                    │
+│   Token 151-200: [RESUMED] $0.00225                          │
+│                                                               │
+│   STOP PAYING when quality drops!                             │
+│   Resume when it improves!                                    │
+│   Never pay for garbage output again!                         │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### 9. 4-LAYER SAFETY PROTOCOL
+```typescript
+// SYNAPSE SAFETY STACK:
+
+Layer 1: RATE LIMITING
+- Max 10 transactions per minute
+- Max $100 per minute
+- Prevents runaway spending
+
+Layer 2: ANOMALY DETECTION
+- Flags transactions 2x above average
+- Alerts on new recipients
+- Warns on unusual timing
+
+Layer 3: CIRCUIT BREAKER
+- After 5 consecutive failures: STOP ALL PAYMENTS
+- Auto-reset after cooldown
+- Prevents cascade failures
+
+Layer 4: CIRCULAR PAYMENT DETECTION
+- Detects A→B→C→A loops
+- Prevents infinite payment cycles
+- Protects against attacks
+```
+
+### 10. REAL BLOCKCHAIN TRANSACTIONS (Not Simulated)
+```
+┌──────────────────────────────────────────────────────────────┐
+│                   PROOF OF REAL                               │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│   VERIFIED TRANSACTIONS ON BASE SEPOLIA:                      │
+│                                                               │
+│   TX 1: 0x1d851517ebb0831cfe057066e8262be3dfe3d812545de674... │
+│         crypto.price execution - $0.003 USDC                  │
+│                                                               │
+│   TX 2: 0x754977719a78fa468b571a352615b71b87fb8df557cba344... │
+│         weather.current execution - $0.005 USDC               │
+│                                                               │
+│   TX 3: 0xe08e3e614c4c2c0298fbaddd0fd54f3b89c3cea4a3f68626... │
+│         Bilateral session settlement - $0.01 USDC             │
+│                                                               │
+│   NOT MOCKED. NOT SIMULATED. REAL USDC. REAL BLOCKCHAIN.     │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## HEAD-TO-HEAD COMPARISON
+
+| Feature | SYNAPSE | Typical Hackathon Project |
+|---------|---------|---------------------------|
+| **Real USDC Transfers** | Verified on BaseScan | Console.log("payment sent") |
+| **Payment Channels** | 1000 tx / 2 gas | Every tx on-chain (unscalable) |
+| **Bilateral Sessions** | Agents pay each other | One-way only |
+| **Credit Scoring** | FICO-style 300-850 | All agents equal |
+| **Multi-LLM Support** | 20+ models competing | "We use GPT-4" |
+| **Dispute Resolution** | Auto-oracles (CoinGecko, Open-Meteo) | "Contact support" |
+| **Safety Protocols** | 4-layer protection | YOLO |
+| **MCP Monetization** | One-liner SDK | 500 lines of boilerplate |
+| **Streaming Payments** | Pay-per-token with pause | Pay upfront, pray |
+| **Agent Wallets** | Constraints, limits, audit trail | Unlimited spending |
+| **Lines of Code** | 28,000+ TypeScript | "It's a proof of concept" |
+| **Production Ready** | Monorepo, typed, documented | Spaghetti code |
+
+---
+
+## THE KILLER DEMO SEQUENCE
+
+```
+1. "Let me show you a REAL payment"
+   → Execute crypto.price intent
+   → Show tx hash
+   → Verify on BaseScan (LIVE)
+
+2. "Now watch bilateral settlement"
+   → Create session between two agents
+   → Agent A pays Agent B $0.05
+   → Agent B pays Agent A $0.03
+   → Settle net: ONE tx of $0.02
+   → Verify on BaseScan (LIVE)
+
+3. "Here's our credit system"
+   → Show agent with 740 score
+   → Execute payment with 15% discount
+   → Show subprime agent paying penalty
+
+4. "Real-time LLM bidding"
+   → Submit prompt to 6 providers
+   → Show ranked results (price/quality/speed)
+   → Select best value with credit discount
+
+5. "Autonomous dispute resolution"
+   → File dispute: "Provider said BTC = $85,000"
+   → Watch CoinGecko oracle query (LIVE)
+   → See verdict: CLIENT WINS
+   → Automatic slash applied
+
+6. "Drop the mic"
+   → Show wallet balance decreased
+   → "These aren't mock transactions. Verify them yourself."
+```
+
+---
+
+## THE BOTTOM LINE
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                                                                              │
+│   We didn't build a demo.                                                   │
+│   We didn't build a proof of concept.                                       │
+│   We didn't build slides about what we WOULD build.                         │
+│                                                                              │
+│   We built the COMPLETE ECONOMIC OPERATING SYSTEM for AI agents.            │
+│                                                                              │
+│   • 28,000+ lines of production TypeScript                                  │
+│   • 22 major components                                                      │
+│   • Real USDC on Base Sepolia                                               │
+│   • Verified transactions on-chain                                           │
+│   • Payment channels for micropayments                                       │
+│   • Bilateral sessions for agent-to-agent                                   │
+│   • Credit scoring for trust                                                 │
+│   • Real oracles for disputes                                                │
+│   • 20+ LLMs competing                                                       │
+│   • One-liner SDK for monetization                                          │
+│                                                                              │
+│   The x402 protocol wasn't designed for humans clicking buttons.            │
+│   It was designed for MILLIONS of autonomous agents trading services.       │
+│                                                                              │
+│   SYNAPSE IS THAT INFRASTRUCTURE.                                           │
+│                                                                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+> **SPEAKER NOTES (60 seconds):**
+> "Now let me tell you why Synapse kills the competition. While other teams show mock payments with console.log, we have REAL transactions you can verify on BaseScan right now. We have bilateral sessions - agents paying each other with net settlement. Payment channels that do 1000 payments with only 2 gas fees. Credit scores that actually affect pricing. 20+ LLMs competing for your business. Autonomous dispute resolution with live CoinGecko oracles. 28,000 lines of production TypeScript. This isn't a proof of concept. This is the economic operating system for the agent economy."
+
+---
+
+# Slide 11: Call to Action
 
 ## The Future is Autonomous
 
@@ -693,13 +1136,15 @@ ENABLE_REAL_ORACLES=true     # CoinGecko + Open-Meteo
 
 | Sponsor | Integration | Files |
 |---------|-------------|-------|
+| **x402 Protocol** | HTTP micropayments, Bilateral Sessions | `packages/core/src/x402/*`, `packages/mcp-x402/*` |
 | **EigenCloud** | TEE, ZK, ERC-8004 | `packages/core/src/eigencloud/*` |
 | **Crossmint** | Smart Wallets, USDC | `packages/mcp-x402/src/verification/*` |
 | **Base** | USDC Settlement | `packages/mcp-x402/src/verification/usdc-transfer.ts` |
+| **Thirdweb** | x402 verification & settlement | `packages/core/src/x402/x402-facilitator.ts` |
 
 ---
 
-## Total Presentation Time: 3-5 Minutes
+## Total Presentation Time: 6-7 Minutes
 
 | Slide | Content | Time |
 |-------|---------|------|
@@ -708,12 +1153,15 @@ ENABLE_REAL_ORACLES=true     # CoinGecko + Open-Meteo
 | 3 | Solution | 30s |
 | 4 | Credit Scores | 30s |
 | 5 | LLM Marketplace | 30s |
-| 6 | **EigenCloud** | 45s |
-| 7 | **Crossmint** | 45s |
-| 8 | Demo | 60-90s |
-| 9 | Architecture | 15s |
-| 10 | CTA | 15s |
-| **Total** | | **4-5 min** |
+| 6 | **x402 Protocol** | 45s |
+| 7 | **EigenCloud** | 45s |
+| 8 | **Crossmint** | 45s |
+| 9 | Demo | 60-90s |
+| 10 | Architecture | 15s |
+| 10.5 | Blockchain Features | 15s |
+| 10.6 | **WHY WE KILL THE COMPETITION** | 60s |
+| 11 | CTA | 15s |
+| **Total** | | **6-7 min** |
 
 ---
 

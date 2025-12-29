@@ -310,15 +310,22 @@ export class X402Client extends EventEmitter<X402ClientEvents> {
   }
 
   /**
-   * Create a demo payment (for testing)
+   * Create a demo payment (DEMO MODE ONLY)
+   * Only called when demoMode=true is explicitly set.
    */
   private createDemoPayment(requirements: X402PaymentRequirements): X402PaymentPayload {
+    console.warn(
+      '[x402 Client] DEMO MODE: Creating demo payment. ' +
+      'This is NOT a real signed transaction and will only work with demo-mode servers.'
+    );
+
     const now = Math.floor(Date.now() / 1000);
 
     return {
       scheme: requirements.scheme,
       network: requirements.network,
-      signature: `demo_sig_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+      // Clearly fake signature with demo prefix
+      signature: `0xdemo_${Date.now().toString(16)}_${Math.random().toString(36).slice(2, 10)}`,
       authorization: {
         from: this.config.wallet.address,
         to: requirements.recipient,

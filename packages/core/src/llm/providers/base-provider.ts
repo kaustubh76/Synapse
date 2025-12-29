@@ -24,6 +24,8 @@ export interface LLMRequestOptions {
   stopSequences?: string[];
   stream?: boolean;
   timeout?: number;
+  /** Callback for streaming tokens (called for each token when stream=true) */
+  onToken?: (token: string) => void;
 }
 
 export interface LLMResponse {

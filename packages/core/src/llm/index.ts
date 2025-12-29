@@ -27,9 +27,20 @@ export {
 export {
   AgentCreditScorer,
   getAgentCreditScorer,
+  initializeAgentCreditScorer,
   resetAgentCreditScorer,
   type CreditTransaction,
+  type CreditScorerConfig,
 } from './credit-score-system.js';
+
+// Credit Persistence
+export {
+  CreditPersistence,
+  getCreditPersistence,
+  resetCreditPersistence,
+  type CreditPersistenceData,
+  type CreditPersistenceConfig,
+} from './credit-persistence.js';
 
 // Streaming Payments
 export {

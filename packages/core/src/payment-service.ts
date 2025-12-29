@@ -4,6 +4,7 @@
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
+import { ethers } from 'ethers';
 import {
   X402Facilitator,
   X402MiddlewareConfig,
@@ -16,6 +17,7 @@ import {
   getDefaultFacilitator,
   ThirdwebFacilitator,
 } from './x402/index.js';
+import { getUSDCTransfer, type TransferResult } from '@synapse/mcp-x402';
 
 /**
  * Payment configuration
@@ -27,10 +29,14 @@ export interface PaymentServiceConfig {
   defaultNetwork?: X402Network;
   /** Server wallet address for receiving payments */
   serverWalletAddress: string;
-  /** Demo mode */
+  /** Demo mode - MUST be explicitly set to true for simulations */
   demoMode?: boolean;
   /** Fee percentage (0-100) */
   feePercentage?: number;
+  /** Private key for direct USDC transfers (required when not in demo mode) */
+  privateKey?: string;
+  /** RPC URL for blockchain transactions */
+  rpcUrl?: string;
 }
 
 /**
@@ -147,16 +153,29 @@ export class PaymentService extends EventEmitter<PaymentServiceEvents> {
   private facilitator: X402Facilitator;
   private escrows: Map<string, EscrowEntry> = new Map();
   private settlements: Map<string, PaymentSettlement> = new Map();
+  private wallet: ethers.Wallet | null = null;
 
   constructor(config: PaymentServiceConfig) {
     super();
     this.config = {
       defaultNetwork: 'base-sepolia',
       feePercentage: 5, // 5% platform fee
-      demoMode: false,
+      demoMode: false, // Default to real payments
+      rpcUrl: 'https://sepolia.base.org',
       ...config,
     };
     this.facilitator = config.facilitator || getDefaultFacilitator();
+
+    // Initialize wallet for real transfers if private key provided
+    if (this.config.privateKey) {
+      const provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
+      this.wallet = new ethers.Wallet(this.config.privateKey, provider);
+    } else if (!this.config.demoMode) {
+      console.warn(
+        '[PaymentService] No private key provided and demoMode=false. ' +
+        'Real transfers will fail. Set EIGENCLOUD_PRIVATE_KEY or enable demoMode.'
+      );
+    }
   }
 
   // ============================================================
@@ -306,6 +325,9 @@ export class PaymentService extends EventEmitter<PaymentServiceEvents> {
 
   /**
    * Settle a payment to provider
+   *
+   * In production mode (demoMode=false), this executes REAL USDC transfers.
+   * Demo mode must be explicitly enabled for simulated payments.
    */
   async settlePayment(payment: IntentPayment): Promise<PaymentSettlement> {
     const network = payment.network || this.config.defaultNetwork!;
@@ -319,51 +341,13 @@ export class PaymentService extends EventEmitter<PaymentServiceEvents> {
     try {
       let settlement: PaymentSettlement;
 
-      if (this.config.demoMode || this.facilitator instanceof ThirdwebFacilitator && (this.facilitator as ThirdwebFacilitator).isDemoMode) {
+      // Demo mode MUST be explicitly enabled
+      if (this.config.demoMode === true) {
         // Demo mode - simulate settlement
         settlement = await this.simulateSettlement(payment, netAmount, platformFee);
       } else {
-        // Real settlement through facilitator
-        const escrow = this.escrows.get(payment.intentId);
-
-        if (escrow?.paymentPayload) {
-          // Use escrowed payment
-          const requirements = this.createPaymentRequirements(
-            payment.amount,
-            payment.providerAddress,
-            network
-          );
-
-          const result = await this.facilitator.settle(
-            escrow.paymentPayload,
-            requirements
-          );
-
-          settlement = {
-            intentId: payment.intentId,
-            success: result.success,
-            txHash: result.txHash,
-            amount: payment.amount,
-            providerAddress: payment.providerAddress,
-            network,
-            platformFee: this.formatAmount(platformFee),
-            netAmount: this.formatAmount(netAmount),
-            error: result.error,
-            settledAt: Date.now(),
-          };
-        } else {
-          // No escrowed payment - create direct settlement
-          // This would typically be done via the provider's x402 endpoint
-          settlement = {
-            intentId: payment.intentId,
-            success: false,
-            amount: payment.amount,
-            providerAddress: payment.providerAddress,
-            network,
-            error: 'No payment payload in escrow - use provider x402 endpoint',
-            settledAt: Date.now(),
-          };
-        }
+        // Production mode - execute REAL USDC transfer
+        settlement = await this.executeRealSettlement(payment, netAmount, platformFee, network);
       }
 
       this.settlements.set(payment.intentId, settlement);
@@ -389,6 +373,89 @@ export class PaymentService extends EventEmitter<PaymentServiceEvents> {
         settledAt: Date.now(),
       };
     }
+  }
+
+  /**
+   * Execute a real USDC transfer to provider
+   */
+  private async executeRealSettlement(
+    payment: IntentPayment,
+    netAmount: bigint,
+    platformFee: bigint,
+    network: X402Network
+  ): Promise<PaymentSettlement> {
+    // Check if we have a wallet for real transfers
+    if (!this.wallet) {
+      // Try to use escrow payment if available
+      const escrow = this.escrows.get(payment.intentId);
+      if (escrow?.paymentPayload) {
+        const requirements = this.createPaymentRequirements(
+          payment.amount,
+          payment.providerAddress,
+          network
+        );
+
+        const result = await this.facilitator.settle(
+          escrow.paymentPayload,
+          requirements
+        );
+
+        return {
+          intentId: payment.intentId,
+          success: result.success,
+          txHash: result.txHash,
+          amount: payment.amount,
+          providerAddress: payment.providerAddress,
+          network,
+          platformFee: this.formatAmount(platformFee),
+          netAmount: this.formatAmount(netAmount),
+          error: result.error,
+          settledAt: Date.now(),
+        };
+      }
+
+      // No wallet and no escrow payload
+      return {
+        intentId: payment.intentId,
+        success: false,
+        amount: payment.amount,
+        providerAddress: payment.providerAddress,
+        network,
+        error: 'No private key configured for real transfers. Set EIGENCLOUD_PRIVATE_KEY or enable demoMode.',
+        settledAt: Date.now(),
+      };
+    }
+
+    // Execute real USDC transfer
+    const usdcTransfer = getUSDCTransfer({ rpcUrl: this.config.rpcUrl });
+    const netAmountUsdc = Number(netAmount) / 1e6; // Convert from 6 decimals
+
+    console.log(`[PaymentService] Executing REAL USDC transfer: ${netAmountUsdc} USDC to ${payment.providerAddress}`);
+
+    const transferResult: TransferResult = await usdcTransfer.transfer(this.wallet, {
+      recipient: payment.providerAddress,
+      amount: netAmountUsdc,
+      reason: `Intent settlement: ${payment.intentId}`,
+    });
+
+    if (transferResult.success) {
+      console.log(`[PaymentService] Real transfer SUCCESS: ${transferResult.txHash}`);
+    } else {
+      console.error(`[PaymentService] Real transfer FAILED: ${transferResult.error}`);
+    }
+
+    return {
+      intentId: payment.intentId,
+      success: transferResult.success,
+      txHash: transferResult.txHash,
+      amount: payment.amount,
+      providerAddress: payment.providerAddress,
+      network,
+      platformFee: this.formatAmount(platformFee),
+      netAmount: this.formatAmount(netAmount),
+      error: transferResult.error,
+      settledAt: Date.now(),
+    };
   }
 
   /**
@@ -508,16 +575,25 @@ export class PaymentService extends EventEmitter<PaymentServiceEvents> {
   // PRIVATE METHODS
   // ============================================================
 
+  /**
+   * Simulate settlement (DEMO MODE ONLY)
+   * This method is only called when demoMode=true is explicitly set.
+   */
   private async simulateSettlement(
     payment: IntentPayment,
     netAmount: bigint,
     platformFee: bigint
   ): Promise<PaymentSettlement> {
+    console.warn(
+      `[PaymentService] DEMO MODE: Simulating settlement for ${payment.intentId}. ` +
+      `No real USDC transfer will be executed. Set X402_DEMO_MODE=false for real payments.`
+    );
+
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
 
-    // Generate fake tx hash
-    const txHash = `0x${Array.from({ length: 64 }, () =>
+    // Generate clearly fake tx hash with demo prefix
+    const txHash = `0xdemo_${Array.from({ length: 58 }, () =>
       Math.floor(Math.random() * 16).toString(16)
     ).join('')}`;
 
@@ -564,14 +640,23 @@ let paymentServiceInstance: PaymentService | null = null;
 
 /**
  * Get default payment service
+ *
+ * Uses environment variables:
+ * - EIGENCLOUD_PRIVATE_KEY: Required for real USDC transfers
+ * - X402_SERVER_WALLET: Server wallet address
+ * - X402_NETWORK: Network (default: base-sepolia)
+ * - X402_DEMO_MODE: Set to 'true' to enable demo mode (MUST be explicit)
+ * - BASE_SEPOLIA_RPC_URL: RPC URL for transactions
  */
 export function getPaymentService(config?: PaymentServiceConfig): PaymentService {
   if (!paymentServiceInstance) {
     paymentServiceInstance = new PaymentService(
       config || {
-        serverWalletAddress: process.env.X402_SERVER_WALLET || '',
+        serverWalletAddress: process.env.X402_SERVER_WALLET || process.env.EIGENCLOUD_WALLET_ADDRESS || '',
         defaultNetwork: (process.env.X402_NETWORK as X402Network) || 'base-sepolia',
-        demoMode: process.env.X402_DEMO_MODE === 'true',
+        demoMode: process.env.X402_DEMO_MODE === 'true', // Must be explicitly true
+        privateKey: process.env.EIGENCLOUD_PRIVATE_KEY, // Required for real transfers
+        rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
       }
     );
   }

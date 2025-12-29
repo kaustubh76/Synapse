@@ -438,14 +438,242 @@ export class LLMExecutionEngine extends EventEmitter {
 
   // -------------------- STREAMING EXECUTION --------------------
 
+  /**
+   * Execute streaming comparison across multiple models in parallel
+   * Each model streams tokens independently, calling onToken for each
+   */
   async executeStreamingComparison(
     intentId: string,
     params: LLMIntentParams,
     onToken: (modelId: string, token: string, cost: number) => void
   ): Promise<LLMComparisonResult> {
-    // For now, fall back to regular execution
-    // TODO: Implement true parallel streaming
-    const result = await this.executeComparison(intentId, params);
+    const startTime = Date.now();
+
+    this.emitEvent({
+      type: 'comparison_started',
+      intentId,
+      timestamp: startTime,
+      data: { params, streaming: true },
+    });
+
+    // Select models
+    const modelIds = this.selectModels(params);
+
+    if (modelIds.length === 0) {
+      throw new Error('No models available for streaming comparison');
+    }
+
+    console.log(`[LLM Engine] Streaming comparison on ${modelIds.length} models: ${modelIds.join(', ')}`);
+
+    // Track cumulative state per model
+    interface ModelStreamState {
+      tokens: string[];
+      tokenCount: number;
+      cost: number;
+      startTime: number;
+    }
+    const modelState = new Map<string, ModelStreamState>();
+
+    // Launch all streams in parallel using Promise.allSettled
+    const streamPromises = modelIds.map(async (modelId): Promise<LLMExecution> => {
+      const model = this.registry.getModel(modelId);
+      if (!model) {
+        return this.createFailedExecution(modelId, new Error(`Model not found: ${modelId}`), params);
+      }
+
+      const provider = this.providers.get(model.provider);
+      if (!provider) {
+        return this.createFailedExecution(modelId, new Error(`Provider not configured: ${model.provider}`), params);
+      }
+
+      // Initialize state for this model
+      modelState.set(modelId, {
+        tokens: [],
+        tokenCount: 0,
+        cost: 0,
+        startTime: Date.now(),
+      });
+
+      const executionId = `exec_stream_${nanoid()}`;
+
+      try {
+        console.log(`[LLM Engine] Starting stream for ${modelId}`);
+
+        // Execute with streaming enabled
+        const execution = await provider.execute(executionId, {
+          model: modelId,
+          prompt: params.prompt,
+          systemPrompt: params.systemPrompt,
+          messages: params.messages,
+          maxTokens: params.maxTokens,
+          temperature: params.temperature,
+          topP: params.topP,
+          frequencyPenalty: params.frequencyPenalty,
+          presencePenalty: params.presencePenalty,
+          stopSequences: params.stopSequences,
+          stream: true,
+          onToken: (token: string) => {
+            const state = modelState.get(modelId);
+            if (state) {
+              state.tokens.push(token);
+              state.tokenCount++;
+
+              // Calculate incremental cost (output token cost per million)
+              const costPerToken = (model.outputPricePerMillion || 0) / 1_000_000;
+              state.cost += costPerToken;
+
+              // Call user callback
+              onToken(modelId, token, state.cost);
+            }
+          },
+        });
+
+        // Calculate final cost
+        execution.cost = this.registry.calculateCost(
+          modelId,
+          execution.tokenUsage.inputTokens,
+          execution.tokenUsage.outputTokens
+        );
+
+        // Update model stats
+        this.registry.updateModelStats(modelId, {
+          latencyMs: execution.latencyMs,
+          success: execution.status === 'completed',
+        });
+
+        console.log(`[LLM Engine] Stream completed for ${modelId}`);
+        return execution;
+
+      } catch (error) {
+        console.error(`[LLM Engine] Stream failed for ${modelId}:`, error);
+
+        // Update stats for failure
+        this.registry.updateModelStats(modelId, { success: false });
+
+        return this.createFailedExecution(modelId, error, params);
+      }
+    });
+
+    // Wait for all streams to complete
+    const results = await Promise.allSettled(streamPromises);
+
+    // Process results
+    const executions: LLMExecution[] = results.map((result, i) => {
+      if (result.status === 'fulfilled') {
+        return result.value;
+      }
+      return this.createFailedExecution(modelIds[i], result.reason, params);
+    });
+
+    console.log(`[LLM Engine] Streaming comparison complete: ${executions.length} results`);
+
+    // Build comparison result using existing logic
+    return this.buildComparisonResult(intentId, params, executions, startTime);
+  }
+
+  /**
+   * Create a failed execution object for error handling
+   */
+  private createFailedExecution(
+    modelId: string,
+    error: unknown,
+    params: LLMIntentParams
+  ): LLMExecution {
+    const model = this.registry.getModel(modelId);
+    return {
+      executionId: `exec_failed_${nanoid()}`,
+      modelId,
+      modelName: model?.name || modelId,
+      provider: model?.provider || 'openai',
+      prompt: params.prompt,
+      systemPrompt: params.systemPrompt,
+      messages: params.messages,
+      response: '',
+      finishReason: 'error' as const,
+      tokenUsage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      latencyMs: 0,
+      cost: 0,
+      startTime: Date.now(),
+      endTime: Date.now(),
+      teeVerified: false,
+      status: 'failed' as const,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+
+  /**
+   * Build comparison result from executions (extracted from executeComparison)
+   */
+  private buildComparisonResult(
+    intentId: string,
+    params: LLMIntentParams,
+    executions: LLMExecution[],
+    startTime: number
+  ): LLMComparisonResult {
+    // Filter successful executions
+    const successfulExecutions = executions.filter(e => e.status === 'completed');
+    const failedCount = executions.length - successfulExecutions.length;
+
+    console.log(`[LLM Engine] Successful: ${successfulExecutions.length}, Failed: ${failedCount}`);
+
+    if (successfulExecutions.length === 0) {
+      throw new Error('All model executions failed');
+    }
+
+    // Score and rank results
+    const rankedResults = this.scoreAndRankResults(
+      successfulExecutions,
+      params.compareBy || ['cost', 'quality', 'latency']
+    );
+
+    // Find best in class
+    const cheapest = rankedResults.reduce((min, r) => r.cost < min.cost ? r : min).modelId;
+    const fastest = rankedResults.reduce((min, r) => r.latencyMs < min.latencyMs ? r : min).modelId;
+    const highestQuality = rankedResults.reduce((max, r) =>
+      (r.scores.quality > max.scores.quality) ? r : max
+    ).modelId;
+    const bestValue = rankedResults[0].modelId;
+    const recommended = bestValue;
+
+    const endTime = Date.now();
+
+    const result: LLMComparisonResult = {
+      intentId,
+      prompt: params.prompt,
+      systemPrompt: params.systemPrompt,
+      startTime,
+      endTime,
+      totalDuration: endTime - startTime,
+      results: rankedResults,
+      totalModelsQueried: executions.length,
+      successfulResponses: successfulExecutions.length,
+      failedResponses: failedCount,
+      totalCost: rankedResults.reduce((sum, r) => sum + r.cost, 0),
+      avgLatency: rankedResults.reduce((sum, r) => sum + r.latencyMs, 0) / rankedResults.length,
+      avgQuality: rankedResults.reduce((sum, r) => sum + r.scores.quality, 0) / rankedResults.length,
+      comparison: {
+        cheapest,
+        fastest,
+        highestQuality,
+        bestValue,
+        recommended,
+      },
+    };
+
+    // Auto-select if requested
+    if (params.selectionMode && params.selectionMode !== 'manual') {
+      result.selectedModel = this.autoSelectModel(rankedResults, params.selectionMode);
+      result.selectionReason = params.selectionMode;
+      result.selectedAt = Date.now();
+    }
+
+    this.emitEvent({
+      type: 'comparison_completed',
+      intentId,
+      timestamp: endTime,
+      data: { result, streaming: true },
+    });
+
     return result;
   }
 

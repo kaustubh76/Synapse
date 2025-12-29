@@ -12,3 +12,11 @@ export {
   type BilateralSessionConfig,
   type ParticipantRole,
 } from './bilateral-session.js';
+
+export {
+  SessionPersistence,
+  getSessionPersistence,
+  resetSessionPersistence,
+  type SessionPersistenceData,
+  type SessionPersistenceConfig,
+} from './session-persistence.js';

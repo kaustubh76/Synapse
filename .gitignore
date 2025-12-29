@@ -43,3 +43,8 @@ coverage/
 
 # Archive (internal planning docs)
 .archive/
+
+# Data files (persisted state)
+data/*.json
+data/*.db
+!data/.gitkeep

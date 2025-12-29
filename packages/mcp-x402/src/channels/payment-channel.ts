@@ -5,6 +5,12 @@
 
 import { EventEmitter } from 'eventemitter3';
 import { X402Network, CHAIN_IDS, USDC_ADDRESSES, generateNonce } from '../types.js';
+import {
+  ChannelPersistence,
+  getChannelPersistence,
+  type SerializableChannelData,
+  type ChannelPersistenceConfig,
+} from './channel-persistence.js';
 
 /**
  * Payment channel state
@@ -401,6 +407,65 @@ export class PaymentChannel extends EventEmitter<ChannelEvents> {
     crypto.getRandomValues(bytes);
     return 'channel_' + Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('');
   }
+
+  // ============================================================
+  // SERIALIZATION FOR PERSISTENCE
+  // ============================================================
+
+  /**
+   * Convert channel to serializable data (no functions/closures)
+   */
+  toSerializable(): SerializableChannelData {
+    return {
+      id: this._id,
+      config: this.config,
+      state: this._state,
+      sequence: this._sequence,
+      spent: this._spent,
+      deposit: this._deposit,
+      payments: [...this._payments],
+      createdAt: this._createdAt,
+      expiresAt: this._expiresAt,
+      openTxHash: this._openTxHash,
+      closeTxHash: this._closeTxHash,
+    };
+  }
+
+  /**
+   * Restore channel from serialized data
+   */
+  static fromSerializable(
+    data: SerializableChannelData,
+    signer: (message: string) => Promise<string>
+  ): PaymentChannel {
+    const channel = new PaymentChannel(data.config, signer);
+
+    // Restore internal state
+    (channel as any)._id = data.id;
+    (channel as any)._state = data.state;
+    (channel as any)._sequence = data.sequence;
+    (channel as any)._spent = data.spent;
+    (channel as any)._deposit = data.deposit;
+    (channel as any)._payments = [...data.payments];
+    (channel as any)._createdAt = data.createdAt;
+    (channel as any)._expiresAt = data.expiresAt;
+    (channel as any)._openTxHash = data.openTxHash;
+    (channel as any)._closeTxHash = data.closeTxHash;
+
+    return channel;
+  }
+}
+
+/**
+ * Payment Channel Manager configuration
+ */
+export interface PaymentChannelManagerConfig {
+  network: X402Network;
+  sender: string;
+  signer: (message: string) => Promise<string>;
+  enablePersistence?: boolean;
+  persistencePath?: string;
+  autoSaveInterval?: number;
 }
 
 /**
@@ -412,16 +477,111 @@ export class PaymentChannelManager extends EventEmitter<ChannelEvents> {
   private signer: (message: string) => Promise<string>;
   private network: X402Network;
   private sender: string;
+  private persistence: ChannelPersistence | null = null;
+  private enablePersistence: boolean;
 
-  constructor(config: {
-    network: X402Network;
-    sender: string;
-    signer: (message: string) => Promise<string>;
-  }) {
+  constructor(config: PaymentChannelManagerConfig) {
     super();
     this.network = config.network;
     this.sender = config.sender;
     this.signer = config.signer;
+    this.enablePersistence = config.enablePersistence ?? false;
+
+    if (this.enablePersistence) {
+      this.persistence = getChannelPersistence({
+        dataPath: config.persistencePath,
+        autoSaveInterval: config.autoSaveInterval,
+        enableAutoSave: true,
+      });
+    }
+  }
+
+  /**
+   * Initialize manager - load persisted channels
+   */
+  async initialize(): Promise<void> {
+    if (!this.persistence) return;
+
+    await this.persistence.initialize();
+    const data = await this.persistence.load();
+
+    if (data) {
+      // Restore channels
+      for (const [id, channelData] of Object.entries(data.channels)) {
+        const channel = PaymentChannel.fromSerializable(channelData, this.signer);
+
+        // Forward events
+        channel.on('channel:opened', info => this.emit('channel:opened', info));
+        channel.on('payment:made', payment => {
+          this.markDirty();
+          this.emit('payment:made', payment);
+        });
+        channel.on('channel:closing', info => this.emit('channel:closing', info));
+        channel.on('channel:closed', (info, amount) => {
+          this.markDirty();
+          this.emit('channel:closed', info, amount);
+        });
+        channel.on('channel:disputed', (info, reason) => this.emit('channel:disputed', info, reason));
+        channel.on('error', error => this.emit('error', error));
+
+        this.channels.set(id, channel);
+      }
+
+      // Restore recipient index
+      for (const [recipient, channelIds] of Object.entries(data.recipientIndex)) {
+        this.recipientChannels.set(recipient, new Set(channelIds));
+      }
+
+      console.log(`[PaymentChannelManager] Restored ${this.channels.size} channels from persistence`);
+    }
+
+    // Start auto-save
+    this.persistence.startAutoSave(
+      () => this.getSerializableChannels(),
+      () => this.recipientChannels
+    );
+  }
+
+  /**
+   * Shutdown manager - save and stop auto-save
+   */
+  async shutdown(): Promise<void> {
+    if (this.persistence) {
+      this.persistence.stopAutoSave();
+      await this.save();
+    }
+  }
+
+  /**
+   * Save current state to persistence
+   */
+  async save(): Promise<void> {
+    if (this.persistence) {
+      await this.persistence.save(
+        this.getSerializableChannels(),
+        this.recipientChannels
+      );
+    }
+  }
+
+  /**
+   * Mark data as dirty (needs saving)
+   */
+  private markDirty(): void {
+    if (this.persistence) {
+      this.persistence.markDirty();
+    }
+  }
+
+  /**
+   * Get serializable channel data
+   */
+  private getSerializableChannels(): Map<string, SerializableChannelData> {
+    const result = new Map<string, SerializableChannelData>();
+    for (const [id, channel] of this.channels) {
+      result.set(id, channel.toSerializable());
+    }
+    return result;
   }
 
   /**
@@ -450,12 +610,24 @@ export class PaymentChannelManager extends EventEmitter<ChannelEvents> {
       this.signer
     );
 
-    // Forward events
-    channel.on('channel:opened', info => this.emit('channel:opened', info));
-    channel.on('payment:made', payment => this.emit('payment:made', payment));
+    // Forward events with persistence marking
+    channel.on('channel:opened', info => {
+      this.markDirty();
+      this.emit('channel:opened', info);
+    });
+    channel.on('payment:made', payment => {
+      this.markDirty();
+      this.emit('payment:made', payment);
+    });
     channel.on('channel:closing', info => this.emit('channel:closing', info));
-    channel.on('channel:closed', (info, amount) => this.emit('channel:closed', info, amount));
-    channel.on('channel:disputed', (info, reason) => this.emit('channel:disputed', info, reason));
+    channel.on('channel:closed', (info, amount) => {
+      this.markDirty();
+      this.emit('channel:closed', info, amount);
+    });
+    channel.on('channel:disputed', (info, reason) => {
+      this.markDirty();
+      this.emit('channel:disputed', info, reason);
+    });
     channel.on('error', error => this.emit('error', error));
 
     // Open the channel
@@ -467,6 +639,9 @@ export class PaymentChannelManager extends EventEmitter<ChannelEvents> {
       this.recipientChannels.set(recipient, new Set());
     }
     this.recipientChannels.get(recipient)!.add(channel.id);
+
+    // Mark dirty after adding new channel
+    this.markDirty();
 
     return channel;
   }

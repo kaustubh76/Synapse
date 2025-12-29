@@ -9,6 +9,7 @@ import {
   CreditFactors,
   CREDIT_TIER_CONFIG,
 } from './types.js';
+import { CreditPersistence, getCreditPersistence } from './credit-persistence.js';
 
 export interface CreditTransaction {
   id: string;
@@ -20,9 +21,96 @@ export interface CreditTransaction {
   status: 'pending' | 'completed' | 'failed';
 }
 
+export interface CreditScorerConfig {
+  persistencePath?: string;
+  enablePersistence?: boolean;
+  autoSaveInterval?: number;
+}
+
 export class AgentCreditScorer extends EventEmitter {
   private profiles: Map<string, AgentCreditProfile> = new Map();
   private transactions: Map<string, CreditTransaction[]> = new Map();
+  private persistence: CreditPersistence | null = null;
+  private initialized: boolean = false;
+  private config: CreditScorerConfig;
+
+  constructor(config: CreditScorerConfig = {}) {
+    super();
+    this.config = {
+      enablePersistence: process.env.CREDIT_PERSISTENCE !== 'false',
+      persistencePath: process.env.CREDIT_DB_PATH || './data/credit-scores.json',
+      autoSaveInterval: 30000,
+      ...config,
+    };
+  }
+
+  // -------------------- INITIALIZATION --------------------
+
+  /**
+   * Initialize the credit scorer with persistence
+   * This MUST be called before using the scorer if persistence is enabled
+   */
+  async initialize(): Promise<void> {
+    if (this.initialized) return;
+
+    if (this.config.enablePersistence) {
+      this.persistence = getCreditPersistence({
+        dataPath: this.config.persistencePath,
+        autoSaveInterval: this.config.autoSaveInterval,
+        enableAutoSave: true,
+      });
+
+      await this.persistence.initialize();
+
+      // Load existing data
+      const data = await this.persistence.load();
+      if (data) {
+        this.profiles = new Map(Object.entries(data.profiles));
+        this.transactions = new Map(Object.entries(data.transactions));
+        console.log(
+          `[AgentCreditScorer] Loaded ${this.profiles.size} profiles from persistence`
+        );
+      }
+
+      // Start auto-save
+      this.persistence.startAutoSave(
+        () => this.profiles,
+        () => this.transactions
+      );
+    }
+
+    this.initialized = true;
+    this.emit('initialized', { profileCount: this.profiles.size });
+  }
+
+  /**
+   * Force save to persistence
+   */
+  async save(): Promise<void> {
+    if (this.persistence) {
+      await this.persistence.save(this.profiles, this.transactions);
+    }
+  }
+
+  /**
+   * Shutdown - save and cleanup
+   */
+  async shutdown(): Promise<void> {
+    if (this.persistence) {
+      this.persistence.stopAutoSave();
+      await this.save();
+    }
+    this.initialized = false;
+  }
+
+  /**
+   * Mark data as modified (needs saving)
+   */
+  private markDirty(): void {
+    if (this.persistence) {
+      this.persistence.markDirty();
+    }
+  }
 
   // -------------------- PROFILE MANAGEMENT --------------------
 
@@ -63,6 +151,7 @@ export class AgentCreditScorer extends EventEmitter {
     };
 
     this.profiles.set(agentId, profile);
+    this.markDirty();
     this.emit('profile_created', { agentId, profile });
 
     return profile;
@@ -273,6 +362,7 @@ export class AgentCreditScorer extends EventEmitter {
     txns.push(txn);
     this.transactions.set(agentId, txns);
 
+    this.markDirty();
     this.emit('credit_used', { agentId, amount, txn, profile });
 
     return txn;
@@ -315,6 +405,7 @@ export class AgentCreditScorer extends EventEmitter {
     // Update credit score
     await this.updateCreditScore(agentId);
 
+    this.markDirty();
     this.emit('payment_recorded', { agentId, amount, onTime, profile });
   }
 
@@ -342,6 +433,7 @@ export class AgentCreditScorer extends EventEmitter {
     // Severely impact credit score
     await this.updateCreditScore(agentId);
 
+    this.markDirty();
     this.emit('default_recorded', { agentId, amount, profile });
   }
 
@@ -364,6 +456,7 @@ export class AgentCreditScorer extends EventEmitter {
     profile.unsecuredCreditLimit = baseLimit + collateralBonus;
     profile.availableCredit = profile.unsecuredCreditLimit - profile.currentBalance;
 
+    this.markDirty();
     this.emit('collateral_added', { agentId, amount, profile });
   }
 
@@ -390,6 +483,7 @@ export class AgentCreditScorer extends EventEmitter {
       ? profile.stakedAmount / profile.currentBalance
       : 0;
 
+    this.markDirty();
     this.emit('collateral_removed', { agentId, amount, profile });
   }
 
@@ -399,6 +493,7 @@ export class AgentCreditScorer extends EventEmitter {
     for (const profile of this.profiles.values()) {
       profile.currentDailySpend = 0;
     }
+    this.markDirty();
     this.emit('daily_limits_reset');
   }
 
@@ -406,6 +501,7 @@ export class AgentCreditScorer extends EventEmitter {
     for (const profile of this.profiles.values()) {
       profile.currentMonthlySpend = 0;
     }
+    this.markDirty();
     this.emit('monthly_limits_reset');
   }
 
@@ -418,6 +514,7 @@ export class AgentCreditScorer extends EventEmitter {
         profile.accountAge = Math.floor((now - firstTxn.timestamp) / (24 * 60 * 60 * 1000));
       }
     }
+    this.markDirty();
   }
 
   // -------------------- STATISTICS --------------------
@@ -450,14 +547,41 @@ export class AgentCreditScorer extends EventEmitter {
 // -------------------- SINGLETON --------------------
 
 let scorerInstance: AgentCreditScorer | null = null;
+let initPromise: Promise<void> | null = null;
 
-export function getAgentCreditScorer(): AgentCreditScorer {
+/**
+ * Get or create the credit scorer singleton
+ * Automatically initializes with persistence if enabled
+ */
+export function getAgentCreditScorer(config?: CreditScorerConfig): AgentCreditScorer {
   if (!scorerInstance) {
-    scorerInstance = new AgentCreditScorer();
+    scorerInstance = new AgentCreditScorer(config);
   }
   return scorerInstance;
 }
 
-export function resetAgentCreditScorer(): void {
+/**
+ * Initialize the credit scorer singleton
+ * Must be called before using the scorer if persistence is enabled
+ */
+export async function initializeAgentCreditScorer(config?: CreditScorerConfig): Promise<AgentCreditScorer> {
+  const scorer = getAgentCreditScorer(config);
+
+  if (!initPromise) {
+    initPromise = scorer.initialize();
+  }
+
+  await initPromise;
+  return scorer;
+}
+
+/**
+ * Shutdown and reset the credit scorer singleton
+ */
+export async function resetAgentCreditScorer(): Promise<void> {
+  if (scorerInstance) {
+    await scorerInstance.shutdown();
+  }
   scorerInstance = null;
+  initPromise = null;
 }

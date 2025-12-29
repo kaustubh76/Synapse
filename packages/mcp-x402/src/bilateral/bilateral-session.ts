@@ -9,6 +9,11 @@ import { nanoid } from 'nanoid';
 import { ethers } from 'ethers';
 import type { MCPIdentity } from '../identity/mcp-identity.js';
 import { getUSDCTransfer } from '../verification/usdc-transfer.js';
+import {
+  SessionPersistence,
+  getSessionPersistence,
+  type SessionPersistenceConfig,
+} from './session-persistence.js';
 
 // -------------------- TYPES --------------------
 
@@ -87,6 +92,12 @@ export interface BilateralSessionConfig {
   sessionExpiry?: number;
   /** Minimum amount to settle (below this, skip on-chain) */
   minimumSettlement?: number;
+  /** Enable persistence */
+  enablePersistence?: boolean;
+  /** Persistence file path */
+  persistencePath?: string;
+  /** Auto-save interval in ms */
+  autoSaveInterval?: number;
 }
 
 interface BilateralSessionEvents {
@@ -101,7 +112,9 @@ interface BilateralSessionEvents {
 
 export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents> {
   private sessions: Map<string, BilateralSession> = new Map();
-  private config: Required<BilateralSessionConfig>;
+  private config: Required<Omit<BilateralSessionConfig, 'enablePersistence' | 'persistencePath' | 'autoSaveInterval'>>;
+  private persistence: SessionPersistence | null = null;
+  private enablePersistence: boolean;
 
   constructor(config: BilateralSessionConfig = {}) {
     super();
@@ -110,6 +123,65 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
       sessionExpiry: config.sessionExpiry || 60 * 60 * 1000, // 1 hour
       minimumSettlement: config.minimumSettlement || 0.001, // $0.001 USDC
     };
+    this.enablePersistence = config.enablePersistence ?? false;
+
+    if (this.enablePersistence) {
+      this.persistence = getSessionPersistence({
+        dataPath: config.persistencePath,
+        autoSaveInterval: config.autoSaveInterval,
+        enableAutoSave: true,
+      });
+    }
+  }
+
+  /**
+   * Initialize manager - load persisted sessions
+   */
+  async initialize(): Promise<void> {
+    if (!this.persistence) return;
+
+    await this.persistence.initialize();
+    const data = await this.persistence.load();
+
+    if (data) {
+      // Restore sessions
+      for (const [id, session] of Object.entries(data.sessions)) {
+        this.sessions.set(id, session);
+      }
+
+      console.log(`[BilateralSessionManager] Restored ${this.sessions.size} sessions from persistence`);
+    }
+
+    // Start auto-save
+    this.persistence.startAutoSave(() => this.sessions);
+  }
+
+  /**
+   * Shutdown manager - save and stop auto-save
+   */
+  async shutdown(): Promise<void> {
+    if (this.persistence) {
+      this.persistence.stopAutoSave();
+      await this.save();
+    }
+  }
+
+  /**
+   * Save current state to persistence
+   */
+  async save(): Promise<void> {
+    if (this.persistence) {
+      await this.persistence.save(this.sessions);
+    }
+  }
+
+  /**
+   * Mark data as dirty (needs saving)
+   */
+  private markDirty(): void {
+    if (this.persistence) {
+      this.persistence.markDirty();
+    }
   }
 
   /**
@@ -137,6 +209,7 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     };
 
     this.sessions.set(sessionId, session);
+    this.markDirty();
     this.emit('session:created', session);
 
     console.log(`[Bilateral] Session created: ${sessionId}`);
@@ -213,6 +286,7 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     // Net balance: positive = server owes client, negative = client owes server
     session.netBalance = session.serverPaidTotal - session.clientPaidTotal;
 
+    this.markDirty();
     this.emit('transaction:recorded', tx, session);
 
     console.log(`[Bilateral] Transaction recorded: ${tx.id}`);
@@ -299,6 +373,7 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     }
 
     session.status = 'settled';
+    this.markDirty();
 
     const result: SettlementResult = {
       sessionId,
@@ -375,6 +450,7 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     }
 
     session.status = 'settled';
+    this.markDirty();
 
     const result: SettlementResult = {
       sessionId,

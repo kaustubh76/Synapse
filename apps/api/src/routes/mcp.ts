@@ -14,6 +14,7 @@ import {
 import {
   getMCPIdentityFactory,
   getBilateralSessionManager,
+  type BilateralSessionConfig,
 } from '@synapse/mcp-x402';
 
 const router = Router();
@@ -968,13 +969,25 @@ router.get('/bilateral/:sessionId/transactions', (req: Request, res: Response) =
 
 export default router;
 
-export function setupMCPRoutes(
+export async function setupMCPRoutes(
   app: { use: (path: string, router: Router) => void },
   io: SocketIOServer
-): void {
+): Promise<void> {
+  // Configure bilateral session manager with persistence
+  const bilateralConfig: BilateralSessionConfig = {
+    network: 'base-sepolia',
+    enablePersistence: process.env.SESSION_PERSIST_PATH ? true : false,
+    persistencePath: process.env.SESSION_PERSIST_PATH || './data/sessions.json',
+    autoSaveInterval: 30000, // 30 seconds
+  };
+
   // Set up WebSocket event forwarding
   const bridge = getMCPToolBridge();
-  const bilateralManager = getBilateralSessionManager();
+  const bilateralManager = getBilateralSessionManager(bilateralConfig);
+
+  // Initialize persistence (load existing sessions)
+  await bilateralManager.initialize();
+  console.log('✅ Bilateral Session Manager initialized with persistence');
 
   bridge.on('intent:created', (intent) => {
     io.to('dashboard').emit('mcp:intent:created', {

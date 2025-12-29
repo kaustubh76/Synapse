@@ -3,3 +3,4 @@
 // ============================================================
 
 export * from './payment-channel.js';
+export * from './channel-persistence.js';

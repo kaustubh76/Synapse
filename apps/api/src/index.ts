@@ -35,11 +35,16 @@ import { setupFlowRoutes } from './routes/flow.js';
 import { setupPaymentVerificationRoutes } from './routes/payment-verification.js';
 import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
-import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine } from '@synapse/core';
+import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine, getAgentCreditScorer } from '@synapse/core';
 import { seedDemoProviders } from './seed/demo-providers.js';
 
 const PORT = process.env.PORT || 3001;
-const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
+const ALLOWED_ORIGINS = [
+  'http://localhost:3000',
+  'http://localhost:3002',
+  process.env.WEB_URL,
+  process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined,
+].filter(Boolean) as string[];
 
 async function main() {
   // Create Express app
@@ -166,6 +171,15 @@ async function main() {
 
   console.log('✅ LLM Engine initialized with', llmEngine.getAvailableModels().length, 'available models');
 
+  // Initialize Credit Scorer with persistence
+  const creditScorer = getAgentCreditScorer({
+    enablePersistence: process.env.CREDIT_PERSISTENCE !== 'false',
+    persistencePath: process.env.CREDIT_DB_PATH || './data/credit-scores.json',
+    autoSaveInterval: 30000, // 30 seconds
+  });
+  await creditScorer.initialize();
+  console.log('✅ Credit Scorer initialized with persistence');
+
   // Setup routes
   setupIntentRoutes(app, intentEngine, io);
   setupProviderRoutes(app, providerRegistry, io);
@@ -176,7 +190,7 @@ async function main() {
   setupDisputeRoutes(app, io);
   setupWalletRoutes(app);
   app.use('/api/llm', llmRoutes);
-  setupMCPRoutes(app, io);
+  await setupMCPRoutes(app, io);
   setupFlowRoutes(app, io);
   setupPaymentVerificationRoutes(app);
 

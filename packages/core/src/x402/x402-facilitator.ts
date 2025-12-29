@@ -277,11 +277,16 @@ export class ThirdwebFacilitator extends EventEmitter<FacilitatorEvents> impleme
     payload: X402PaymentPayload,
     requirements: X402PaymentRequirements
   ): Promise<X402SettlementResult> {
+    console.warn(
+      '[x402 Facilitator] DEMO MODE: Simulating settlement. ' +
+      'No real USDC transfer will be executed.'
+    );
+
     // Simulate network delay
     await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
 
-    // Generate a realistic-looking transaction hash
-    const txHash = `0x${Array.from({ length: 64 }, () =>
+    // Generate a clearly fake transaction hash with demo prefix
+    const txHash = `0xdemo_${Array.from({ length: 58 }, () =>
       Math.floor(Math.random() * 16).toString(16)
     ).join('')}`;
 
@@ -420,19 +425,36 @@ export function createLocalFacilitator(serverWalletAddress: string): LocalFacili
 
 /**
  * Get or create a facilitator based on environment
+ *
+ * IMPORTANT: Demo mode must be EXPLICITLY enabled via X402_DEMO_MODE=true.
+ * If THIRDWEB_SECRET_KEY is missing and demo mode is not enabled, this will
+ * throw an error to prevent accidental production runs without credentials.
  */
 export function getFacilitator(config?: Partial<X402FacilitatorConfig>): X402Facilitator {
   const secretKey = config?.secretKey || process.env.THIRDWEB_SECRET_KEY;
   const serverWallet = config?.serverWalletAddress || process.env.X402_SERVER_WALLET || '';
-  const demoMode = config?.demoMode ?? process.env.X402_DEMO_MODE === 'true';
+  // Demo mode must be EXPLICITLY enabled - no auto-fallback
+  const demoMode = config?.demoMode === true || process.env.X402_DEMO_MODE === 'true';
 
-  if (!secretKey || demoMode) {
-    console.log('[x402] Running in demo mode - payments will be simulated');
+  if (demoMode) {
+    console.warn(
+      '[x402] DEMO MODE EXPLICITLY ENABLED - payments will be simulated. ' +
+      'Set X402_DEMO_MODE=false for real payments.'
+    );
     return new ThirdwebFacilitator({
       serverWalletAddress: serverWallet || '0x0000000000000000000000000000000000000000',
       demoMode: true,
       ...config,
     });
+  }
+
+  // Production mode - require credentials
+  if (!secretKey) {
+    console.warn(
+      '[x402] No THIRDWEB_SECRET_KEY configured and demoMode=false. ' +
+      'x402 verification and settlement will fail. ' +
+      'Either set THIRDWEB_SECRET_KEY or enable X402_DEMO_MODE=true.'
+    );
   }
 
   return new ThirdwebFacilitator({
