@@ -493,9 +493,65 @@ curl http://localhost:3001/api/flow/wallet/status
 │    7    Pricing Models Built-in                 │
 │  100%   TypeScript (Type-safe)                  │
 │  Real   USDC on Base Sepolia                    │
+│    3    Real Oracle Integrations                │
+│         (CoinGecko, Open-Meteo, News)           │
 │                                                 │
 └────────────────────────────────────────────────┘
 ```
+
+---
+
+# Slide 9.5: Real Blockchain Features
+
+## Escrow & Dispute Resolution with Real USDC
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                 REAL BLOCKCHAIN INTEGRATION                   │
+├──────────────────────────────────────────────────────────────┤
+│                                                               │
+│   ┌─────────────────────────────────────────────────────┐    │
+│   │                    ESCROW SYSTEM                     │    │
+│   │                                                      │    │
+│   │   Client ──USDC──▶ Escrow Wallet ──USDC──▶ Provider  │    │
+│   │                         │                            │    │
+│   │                    Real blockchain                   │    │
+│   │                    transactions!                     │    │
+│   │                                                      │    │
+│   │   TX: 0x69e5d1fe81ac9a8879486f9816c7545a0cf6a77...  │    │
+│   │   Block: 35612101                                    │    │
+│   └─────────────────────────────────────────────────────┘    │
+│                                                               │
+│   ┌─────────────────────────────────────────────────────┐    │
+│   │              DISPUTE RESOLUTION                      │    │
+│   │                                                      │    │
+│   │   Provider claims: BTC = $85,000                     │    │
+│   │   CoinGecko oracle: BTC = $89,546 (REAL API!)        │    │
+│   │   Deviation: 5.08% > 5% threshold                    │    │
+│   │   Verdict: CLIENT WINS                               │    │
+│   │   Action: 10% provider slash + reputation penalty    │    │
+│   └─────────────────────────────────────────────────────┘    │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Verified Real Transactions:
+
+| Operation | TX Hash | Amount |
+|-----------|---------|--------|
+| Escrow Release | `0x69e5d1fe81ac...` | $0.005 USDC |
+| Bilateral Settlement | `0xe08e3e614c4c...` | $0.01 USDC |
+| x402 Payment | `0x1d851517ebb0...` | $0.003 USDC |
+
+### Real Oracles Integrated:
+
+| Oracle | Purpose | Source |
+|--------|---------|--------|
+| **CoinGecko** | Crypto prices | Live API |
+| **Open-Meteo** | Weather data | Live API |
+| **News** | Article verification | HackerNews |
+
+**Verify on BaseScan:** https://sepolia.basescan.org/address/0xcF1A4587a4470634fc950270cab298B79b258eDe
 
 ---
 
@@ -597,6 +653,18 @@ POST /api/llm/stream/:streamId/pause
 # Wallet
 GET  /api/flow/wallet/status
 POST /api/wallet/create
+
+# Escrow (Real USDC)
+GET  /api/escrow/config
+POST /api/escrow
+POST /api/escrow/:id/release-real    # Real USDC release
+POST /api/escrow/:id/refund-real     # Real USDC refund
+POST /api/escrow/:id/slash-real      # Real USDC slash
+
+# Disputes (Real Oracles)
+GET  /api/disputes/config
+POST /api/disputes                   # Auto-resolves with CoinGecko/Open-Meteo
+GET  /api/disputes/:id
 ```
 
 ## Environment Setup
@@ -610,10 +678,15 @@ cd synapse && npm install && npm run build
 cd apps/api && npm run dev    # API :3001
 cd apps/web && npm run dev    # Web :3002
 
-# Add API keys to apps/api/.env
+# Add API keys to .env
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 EIGENCLOUD_PRIVATE_KEY=0x...
+
+# Real blockchain (Escrow & Disputes)
+ENABLE_REAL_ESCROW=true
+ESCROW_PRIVATE_KEY=0x...     # Dedicated escrow wallet
+ENABLE_REAL_ORACLES=true     # CoinGecko + Open-Meteo
 ```
 
 ## Sponsor Technologies Used
