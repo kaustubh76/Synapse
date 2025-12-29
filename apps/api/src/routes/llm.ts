@@ -14,6 +14,7 @@ import {
   LLMComparisonResult,
   LLMIntentRequest,
   CREDIT_TIER_CONFIG,
+  CreditTier,
 } from '@synapse/core/llm';
 import {
   x402Middleware,
@@ -550,6 +551,236 @@ router.get('/credit/tiers', async (req: Request, res: Response) => {
       error: {
         code: 'CREDIT_TIERS_ERROR',
         message: error instanceof Error ? error.message : 'Failed to get credit tiers',
+      },
+    });
+  }
+});
+
+/**
+ * GET /api/llm/credit/:agentId/detailed
+ * Get detailed credit profile with factor breakdown and next tier info
+ */
+router.get('/credit/:agentId/detailed', async (req: Request, res: Response) => {
+  try {
+    const { agentId } = req.params;
+
+    const scorer = getAgentCreditScorer();
+    const profile = await scorer.getProfile(agentId);
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PROFILE_NOT_FOUND',
+          message: 'Credit profile not found',
+        },
+      });
+    }
+
+    // Calculate factor ratings
+    const getRating = (score: number): string => {
+      if (score >= 90) return 'excellent';
+      if (score >= 70) return 'good';
+      if (score >= 50) return 'fair';
+      return 'poor';
+    };
+
+    // Find next tier
+    const tierOrder: CreditTier[] = ['subprime', 'fair', 'good', 'excellent', 'exceptional'];
+    const currentTierIndex = tierOrder.indexOf(profile.creditTier as CreditTier);
+    const nextTierName = currentTierIndex < tierOrder.length - 1 ? tierOrder[currentTierIndex + 1] : null;
+    const nextTierConfig = nextTierName ? CREDIT_TIER_CONFIG[nextTierName] : null;
+    const pointsToNextTier = nextTierConfig ? nextTierConfig.minScore - profile.creditScore : 0;
+
+    res.json({
+      success: true,
+      data: {
+        score: profile.creditScore,
+        tier: profile.creditTier,
+        tierConfig: {
+          discount: profile.tierDiscount,
+          creditLimit: profile.unsecuredCreditLimit,
+          escrowRequired: CREDIT_TIER_CONFIG[profile.creditTier as CreditTier].escrowRequired,
+        },
+        nextTier: nextTierName ? {
+          name: nextTierName,
+          pointsNeeded: pointsToNextTier,
+          discount: nextTierConfig!.rateDiscount,
+          minScore: nextTierConfig!.minScore,
+        } : null,
+        factors: {
+          paymentHistory: {
+            score: profile.factors.paymentHistory,
+            rating: getRating(profile.factors.paymentHistory),
+            weight: 0.35,
+            description: 'On-time payment history',
+          },
+          creditUtilization: {
+            score: profile.factors.creditUtilization,
+            rating: getRating(profile.factors.creditUtilization),
+            weight: 0.30,
+            description: 'Credit usage vs. limit',
+          },
+          accountAge: {
+            score: profile.factors.accountAge,
+            rating: getRating(profile.factors.accountAge),
+            weight: 0.15,
+            description: 'Time since first activity',
+          },
+          creditMix: {
+            score: profile.factors.creditMix,
+            rating: getRating(profile.factors.creditMix),
+            weight: 0.10,
+            description: 'Variety of transactions',
+          },
+          recentActivity: {
+            score: profile.factors.recentActivity,
+            rating: getRating(profile.factors.recentActivity),
+            weight: 0.10,
+            description: 'Recent payment patterns',
+          },
+        },
+        balances: {
+          currentBalance: profile.currentBalance,
+          availableCredit: profile.availableCredit,
+          dailySpend: profile.currentDailySpend,
+          monthlySpend: profile.currentMonthlySpend,
+          dailyLimit: profile.dailySpendLimit,
+          monthlyLimit: profile.monthlySpendLimit,
+        },
+        stats: {
+          totalTransactions: profile.totalTransactions,
+          successfulPayments: profile.successfulPayments,
+          latePayments: profile.latePayments,
+          defaults: profile.defaults,
+          accountAgeDays: profile.accountAge,
+        },
+        collateral: {
+          stakedAmount: profile.stakedAmount,
+          collateralRatio: profile.collateralRatio,
+        },
+        lastUpdated: profile.lastScoreUpdate,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'CREDIT_DETAILED_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to fetch detailed credit profile',
+      },
+    });
+  }
+});
+
+/**
+ * POST /api/llm/credit/:agentId/simulate
+ * Simulate a payment and show projected score change
+ */
+router.post('/credit/:agentId/simulate', async (req: Request, res: Response) => {
+  try {
+    const { agentId } = req.params;
+    const { amount, onTime = true } = req.body;
+
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_AMOUNT',
+          message: 'Valid payment amount is required',
+        },
+      });
+    }
+
+    const scorer = getAgentCreditScorer();
+    const profile = await scorer.getProfile(agentId);
+
+    if (!profile) {
+      return res.status(404).json({
+        success: false,
+        error: {
+          code: 'PROFILE_NOT_FOUND',
+          message: 'Credit profile not found',
+        },
+      });
+    }
+
+    // Clone profile for simulation
+    const simProfile = { ...profile, factors: { ...profile.factors } };
+
+    // Simulate payment effects
+    simProfile.currentBalance = Math.max(0, simProfile.currentBalance - amount);
+    simProfile.successfulPayments = onTime ? simProfile.successfulPayments + 1 : simProfile.successfulPayments;
+    simProfile.latePayments = !onTime ? simProfile.latePayments + 1 : simProfile.latePayments;
+
+    // Recalculate payment history factor
+    if (simProfile.totalTransactions > 0) {
+      const successRate = simProfile.successfulPayments / (simProfile.totalTransactions + 1);
+      const lateRate = simProfile.latePayments / (simProfile.totalTransactions + 1);
+      simProfile.factors.paymentHistory = Math.max(0, Math.min(100, 100 - lateRate * 30));
+    }
+
+    // Recalculate utilization
+    if (simProfile.unsecuredCreditLimit > 0) {
+      const utilization = simProfile.currentBalance / simProfile.unsecuredCreditLimit;
+      if (utilization < 0.10) simProfile.factors.creditUtilization = 100;
+      else if (utilization < 0.30) simProfile.factors.creditUtilization = 80;
+      else if (utilization < 0.50) simProfile.factors.creditUtilization = 60;
+      else if (utilization < 0.75) simProfile.factors.creditUtilization = 40;
+      else simProfile.factors.creditUtilization = 20;
+    }
+
+    // Calculate projected score
+    const weights = {
+      paymentHistory: 0.35,
+      creditUtilization: 0.30,
+      accountAge: 0.15,
+      creditMix: 0.10,
+      recentActivity: 0.10,
+    };
+
+    const rawScore =
+      simProfile.factors.paymentHistory * weights.paymentHistory +
+      simProfile.factors.creditUtilization * weights.creditUtilization +
+      simProfile.factors.accountAge * weights.accountAge +
+      simProfile.factors.creditMix * weights.creditMix +
+      simProfile.factors.recentActivity * weights.recentActivity;
+
+    const projectedScore = Math.max(300, Math.min(850, Math.round(300 + (rawScore * 5.5))));
+
+    // Check if tier would change
+    const tierOrder: CreditTier[] = ['subprime', 'fair', 'good', 'excellent', 'exceptional'];
+    const getTier = (score: number): CreditTier => {
+      if (score >= 800) return 'exceptional';
+      if (score >= 740) return 'excellent';
+      if (score >= 670) return 'good';
+      if (score >= 580) return 'fair';
+      return 'subprime';
+    };
+
+    const projectedTier = getTier(projectedScore);
+    const tierChange = projectedTier !== profile.creditTier ? projectedTier : null;
+
+    res.json({
+      success: true,
+      data: {
+        currentScore: profile.creditScore,
+        projectedScore,
+        scoreDelta: projectedScore - profile.creditScore,
+        currentTier: profile.creditTier,
+        projectedTier,
+        tierChange,
+        projectedDiscount: tierChange ? CREDIT_TIER_CONFIG[tierChange].rateDiscount : profile.tierDiscount,
+        paymentAmount: amount,
+        onTime,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'SIMULATE_ERROR',
+        message: error instanceof Error ? error.message : 'Failed to simulate payment',
       },
     });
   }

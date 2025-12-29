@@ -1,6 +1,7 @@
 // ============================================================
 // SYNAPSE FLOW API
 // Unified endpoint for complete LLM → Intent → x402 → MCP flow
+// Real USDC transfers using EigenCloud wallet
 // ============================================================
 
 import { Router, Request, Response } from 'express';
@@ -19,13 +20,21 @@ import {
   getBilateralSessionManager,
   getPaymentVerifier,
   getEigenWallet,
+  getUSDCTransfer,
   type MCPIdentityWithWallet,
 } from '@synapse/mcp-x402';
 
 const router = Router();
 
+// EigenCloud wallet configuration
+const EIGENCLOUD_PRIVATE_KEY = process.env.EIGENCLOUD_PRIVATE_KEY || '';
+const EIGENCLOUD_WALLET_ADDRESS = process.env.EIGENCLOUD_WALLET_ADDRESS || '0xcF1A4587a4470634fc950270cab298B79b258eDe';
+
 // Platform wallet for payments
-const PLATFORM_WALLET = process.env.PLATFORM_WALLET || '0x98280dc6fEF54De5DF58308a7c62e3003eA7F455';
+const PLATFORM_WALLET = process.env.PLATFORM_WALLET || process.env.SYNAPSE_PLATFORM_WALLET || '0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21';
+
+// Enable real transfers (default to true when EIGENCLOUD_PRIVATE_KEY is set)
+const USE_REAL_TRANSFERS = process.env.USE_REAL_TRANSFERS !== 'false' && !!EIGENCLOUD_PRIVATE_KEY;
 
 // Flow session storage
 const flowSessions = new Map<string, FlowSession>();
@@ -53,6 +62,43 @@ interface FlowTransaction {
   verified?: boolean;
   blockNumber?: number;
   timestamp: number;
+  isRealTransfer?: boolean;
+  explorerUrl?: string;
+}
+
+// Helper: Execute real USDC transfer - NO SIMULATION FALLBACK
+async function executeUSDCPayment(
+  amount: number,
+  reason: string
+): Promise<{ txHash: string; blockNumber?: number; isReal: boolean; explorerUrl?: string }> {
+  // REQUIRE real wallet configuration - no simulations
+  if (!EIGENCLOUD_PRIVATE_KEY) {
+    throw new Error('EIGENCLOUD_PRIVATE_KEY not configured. Real payments require wallet setup.');
+  }
+
+  const usdcTransfer = getUSDCTransfer();
+  console.log(`[Flow] Executing real USDC transfer: ${amount} USDC - ${reason}`);
+
+  const result = await usdcTransfer.transferWithPrivateKey(
+    EIGENCLOUD_PRIVATE_KEY,
+    {
+      recipient: PLATFORM_WALLET,
+      amount,
+      reason,
+    }
+  );
+
+  if (!result.success || !result.txHash) {
+    throw new Error(`USDC transfer failed: ${result.error || 'Unknown error'}`);
+  }
+
+  console.log(`[Flow] Real transfer complete: ${result.txHash}`);
+  return {
+    txHash: result.txHash,
+    blockNumber: result.blockNumber,
+    isReal: true,
+    explorerUrl: result.explorerUrl,
+  };
 }
 
 /**
@@ -563,7 +609,9 @@ router.post('/execute', async (req: Request, res: Response) => {
     // Step 4: Auto-select best model
     const bestResult = llmResult.results[0];
     const selectionCost = bestResult.cost || 0.005;
-    const mockTxHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+
+    // Execute real USDC payment for LLM selection
+    const llmPayment = await executeUSDCPayment(selectionCost, `LLM selection: ${bestResult.modelId}`);
 
     bilateralManager.recordClientPayment(bilateralSession.sessionId, selectionCost, `llm.${bestResult.modelId}`);
 
@@ -572,7 +620,10 @@ router.post('/execute', async (req: Request, res: Response) => {
       type: 'llm',
       resource: bestResult.modelId,
       amount: selectionCost,
-      txHash: mockTxHash,
+      txHash: llmPayment.txHash,
+      blockNumber: llmPayment.blockNumber,
+      isRealTransfer: llmPayment.isReal,
+      explorerUrl: llmPayment.explorerUrl,
       timestamp: Date.now(),
     }];
 
@@ -592,7 +643,9 @@ router.post('/execute', async (req: Request, res: Response) => {
       });
 
       const toolCost = 0.001;
-      const toolTxHash = `0x${Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('')}`;
+
+      // Execute real USDC payment for tool usage
+      const toolPayment = await executeUSDCPayment(toolCost, `Tool: ${tool.name}`);
 
       bilateralManager.recordClientPayment(bilateralSession.sessionId, toolCost, tool.name);
 
@@ -601,7 +654,10 @@ router.post('/execute', async (req: Request, res: Response) => {
         type: 'tool',
         resource: tool.name,
         amount: toolCost,
-        txHash: toolTxHash,
+        txHash: toolPayment.txHash,
+        blockNumber: toolPayment.blockNumber,
+        isRealTransfer: toolPayment.isReal,
+        explorerUrl: toolPayment.explorerUrl,
         timestamp: Date.now(),
       });
 
@@ -615,7 +671,9 @@ router.post('/execute', async (req: Request, res: Response) => {
         intentId: toolIntent.id,
         output: toolOutput,
         cost: toolCost,
-        txHash: toolTxHash,
+        txHash: toolPayment.txHash,
+        isRealTransfer: toolPayment.isReal,
+        explorerUrl: toolPayment.explorerUrl,
       });
     }
 
@@ -625,13 +683,17 @@ router.post('/execute', async (req: Request, res: Response) => {
         agentId: identity.clientId,
         agentAddress: identity.address,
         bilateralSessionId: bilateralSession.sessionId,
+        eigencloudWallet: EIGENCLOUD_WALLET_ADDRESS,
+        useRealTransfers: USE_REAL_TRANSFERS,
         llm: {
           intentId,
           modelId: bestResult.modelId,
           provider: bestResult.provider,
           response: bestResult.response,
           cost: selectionCost,
-          txHash: mockTxHash,
+          txHash: llmPayment.txHash,
+          isRealTransfer: llmPayment.isReal,
+          explorerUrl: llmPayment.explorerUrl,
           allBids: llmResult.results.map((r, idx) => ({
             modelId: r.modelId,
             provider: r.provider,

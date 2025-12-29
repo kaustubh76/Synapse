@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Users, Zap, TrendingUp, Wallet, Shield, Cpu } from 'lucide-react'
+import { Activity, Users, Zap, TrendingUp, Wallet, Shield, Cpu, Brain, CreditCard, Layers, ChevronRight } from 'lucide-react'
+import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { IntentForm } from '@/components/IntentForm'
 import { BidVisualization } from '@/components/BidVisualization'
@@ -455,6 +456,77 @@ export default function Home() {
             </AnimatePresence>
           </div>
         </div>
+
+        {/* Feature Showcase */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+          className="mt-12"
+        >
+          <h2 className="text-xl font-semibold mb-6 text-gray-300 text-center">Explore Synapse Features</h2>
+          <div className="grid md:grid-cols-3 gap-6">
+            {/* LLM Marketplace */}
+            <Link href="/llm" className="group">
+              <div className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 rounded-2xl p-6 border border-purple-500/30 hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
+                    <Brain className="w-5 h-5 text-purple-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
+                    LLM Marketplace
+                  </h3>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  LLMs compete for your prompt. Compare responses, quality scores, and costs - pay only when you select.
+                </p>
+                <div className="flex items-center text-purple-400 text-sm font-medium">
+                  Try it <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </Link>
+
+            {/* Credit Score */}
+            <Link href="/credit" className="group">
+              <div className="bg-gradient-to-br from-green-900/30 to-gray-900/50 rounded-2xl p-6 border border-green-500/30 hover:border-green-500/50 transition-all hover:shadow-lg hover:shadow-green-500/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-green-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white group-hover:text-green-400 transition-colors">
+                    Credit Score
+                  </h3>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  Build your agent credit score. Unlock discounts up to 20% off and higher credit limits.
+                </p>
+                <div className="flex items-center text-green-400 text-sm font-medium">
+                  View Dashboard <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </Link>
+
+            {/* MCP Tools */}
+            <Link href="/mcp" className="group">
+              <div className="bg-gradient-to-br from-blue-900/30 to-gray-900/50 rounded-2xl p-6 border border-blue-500/30 hover:border-blue-500/50 transition-all hover:shadow-lg hover:shadow-blue-500/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                    <Layers className="w-5 h-5 text-blue-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
+                    MCP Tools
+                  </h3>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  Execute real tools (weather, crypto, news). Decompose complex intents into sub-tasks.
+                </p>
+                <div className="flex items-center text-blue-400 text-sm font-medium">
+                  Explore <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </Link>
+          </div>
+        </motion.div>
 
         {/* Recent Intents */}
         {recentIntents.length > 0 && (

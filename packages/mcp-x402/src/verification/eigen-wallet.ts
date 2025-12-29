@@ -9,16 +9,23 @@ import { USDCTransfer, getUSDCTransfer, TransferResult, TransferRequest } from '
 
 // -------------------- CONFIGURATION --------------------
 
-const EIGEN_WALLET_CONFIG = {
-  // Default EigenCloud wallet from .env.example
-  defaultAddress: process.env.EIGENCLOUD_WALLET_ADDRESS || '0xcF1A4587a4470634fc950270cab298B79b258eDe',
-  // Private key for signing (must be set in environment for real transactions)
-  privateKey: process.env.EIGEN_WALLET_PRIVATE_KEY || '',
-  // Platform wallet for receiving payments
-  platformWallet: process.env.SYNAPSE_PLATFORM_WALLET || process.env.PLATFORM_WALLET || '0x742d35Cc6634c0532925A3b844BC9e7595F5bE21',
-  // RPC URL
-  rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
-};
+// Function to get config at runtime (not module load time)
+function getEigenWalletConfig() {
+  return {
+    // Default EigenCloud wallet from .env.example
+    defaultAddress: process.env.EIGENCLOUD_WALLET_ADDRESS || '0xcF1A4587a4470634fc950270cab298B79b258eDe',
+    // Private key for signing (must be set in environment for real transactions)
+    // Support both env var names for compatibility
+    privateKey: process.env.EIGEN_WALLET_PRIVATE_KEY || process.env.EIGENCLOUD_PRIVATE_KEY || '',
+    // Platform wallet for receiving payments
+    platformWallet: process.env.SYNAPSE_PLATFORM_WALLET || process.env.PLATFORM_WALLET || '0x742d35Cc6634c0532925A3b844BC9e7595F5bE21',
+    // RPC URL
+    rpcUrl: process.env.BASE_SEPOLIA_RPC_URL || 'https://sepolia.base.org',
+  };
+}
+
+// Keep for backwards compatibility but prefer getEigenWalletConfig() for runtime access
+const EIGEN_WALLET_CONFIG = getEigenWalletConfig();
 
 // -------------------- TYPES --------------------
 
@@ -66,12 +73,15 @@ export class EigenWallet extends EventEmitter<EigenWalletEvents> {
   constructor(config?: EigenWalletConfig) {
     super();
 
-    const rpcUrl = config?.rpcUrl || EIGEN_WALLET_CONFIG.rpcUrl;
+    // Get config at runtime (after dotenv has loaded)
+    const runtimeConfig = getEigenWalletConfig();
+
+    const rpcUrl = config?.rpcUrl || runtimeConfig.rpcUrl;
     this.provider = new ethers.JsonRpcProvider(rpcUrl);
     this.usdcTransfer = getUSDCTransfer({ rpcUrl });
 
     // Try to initialize wallet from private key
-    const privateKey = config?.privateKey || EIGEN_WALLET_CONFIG.privateKey;
+    const privateKey = config?.privateKey || runtimeConfig.privateKey;
 
     if (privateKey && privateKey.length > 0) {
       try {
@@ -82,12 +92,12 @@ export class EigenWallet extends EventEmitter<EigenWalletEvents> {
         this.emit('wallet:ready', this._address);
       } catch (error) {
         console.warn('[EigenWallet] Invalid private key, running in read-only mode');
-        this._address = config?.address || EIGEN_WALLET_CONFIG.defaultAddress;
+        this._address = config?.address || runtimeConfig.defaultAddress;
         this._isConfigured = false;
       }
     } else {
       // Read-only mode - can check balances but not sign transactions
-      this._address = config?.address || EIGEN_WALLET_CONFIG.defaultAddress;
+      this._address = config?.address || runtimeConfig.defaultAddress;
       this._isConfigured = false;
       console.log(`[EigenWallet] Running in read-only mode (no private key). Address: ${this._address}`);
     }

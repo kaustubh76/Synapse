@@ -1,10 +1,25 @@
 // ============================================================
 // SYNAPSE Escrow Manager
 // Holds funds during intent execution and releases on completion
+// NOW WITH REAL USDC TRANSFERS ON BASE SEPOLIA
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
 import { nanoid } from 'nanoid';
+import { getUSDCTransfer, type TransferResult } from '@synapse/mcp-x402';
+
+// -------------------- ESCROW CONFIGURATION --------------------
+
+export interface EscrowConfig {
+  /** Private key for escrow custody wallet */
+  escrowPrivateKey?: string;
+  /** Platform wallet address for fee collection */
+  platformWallet?: string;
+  /** Enable real USDC transfers (default: false for backward compatibility) */
+  enableRealTransfers?: boolean;
+  /** Network for blockchain operations */
+  network?: 'base' | 'base-sepolia';
+}
 
 export enum EscrowStatus {
   CREATED = 'CREATED',
@@ -66,6 +81,8 @@ interface EscrowManagerEvents {
  *
  * Manages fund escrow for intent execution.
  * Holds client funds until intent is completed or fails.
+ *
+ * NOW SUPPORTS REAL USDC TRANSFERS ON BASE SEPOLIA!
  */
 export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
   private escrows: Map<string, Escrow> = new Map();
@@ -73,6 +90,23 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
   private totalEscrowed: number = 0;
   private totalReleased: number = 0;
   private totalRefunded: number = 0;
+
+  // Configuration for real blockchain integration
+  private config: Required<EscrowConfig>;
+
+  constructor(config: EscrowConfig = {}) {
+    super();
+    this.config = {
+      escrowPrivateKey: config.escrowPrivateKey || process.env.ESCROW_PRIVATE_KEY || '',
+      platformWallet: config.platformWallet || process.env.PLATFORM_WALLET || '',
+      enableRealTransfers: config.enableRealTransfers ?? (process.env.ENABLE_REAL_ESCROW === 'true'),
+      network: config.network || 'base-sepolia',
+    };
+
+    if (this.config.enableRealTransfers) {
+      console.log('[EscrowManager] REAL USDC transfers ENABLED on', this.config.network);
+    }
+  }
 
   /**
    * Create and fund an escrow for an intent
@@ -105,8 +139,9 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
 
   /**
    * Fund an escrow (deposit funds from client wallet)
+   * Supports both simulated and real USDC transfers
    */
-  private async fundEscrow(escrowId: string): Promise<void> {
+  private async fundEscrow(escrowId: string, clientPrivateKey?: string): Promise<void> {
     const escrow = this.escrows.get(escrowId);
     if (!escrow) throw new Error(`Escrow ${escrowId} not found`);
 
@@ -114,8 +149,32 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
       throw new Error(`Escrow ${escrowId} already funded`);
     }
 
-    // Simulate transaction (in production, this would call Crossmint API)
-    const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
+    let txHash: string;
+
+    // Check if real transfers are enabled
+    if (this.config.enableRealTransfers && clientPrivateKey && this.config.platformWallet) {
+      // Execute REAL USDC transfer from client to escrow/platform wallet
+      console.log(`[EscrowManager] Executing REAL USDC transfer: $${escrow.amount} from client to ${this.config.platformWallet}`);
+
+      const usdcTransfer = getUSDCTransfer();
+      const result = await usdcTransfer.transferWithPrivateKey(clientPrivateKey, {
+        recipient: this.config.platformWallet,
+        amount: escrow.amount,
+        reason: `Escrow deposit for ${escrowId}`,
+      });
+
+      if (!result.success || !result.txHash) {
+        throw new Error(`Escrow funding failed: ${result.error || 'Unknown error'}`);
+      }
+
+      txHash = result.txHash;
+      console.log(`[EscrowManager] REAL deposit confirmed: ${txHash}`);
+      console.log(`[EscrowManager] Block: ${result.blockNumber}, Explorer: ${result.explorerUrl}`);
+    } else {
+      // Simulate transaction (backward compatibility)
+      txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
+      console.log(`[EscrowManager] Simulated deposit: ${txHash}`);
+    }
 
     escrow.status = EscrowStatus.FUNDED;
     escrow.fundedAt = Date.now();
@@ -128,12 +187,61 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
   }
 
   /**
+   * Fund escrow with real USDC transfer
+   * Call this after createEscrow to execute real blockchain deposit
+   */
+  async fundEscrowReal(escrowId: string, clientPrivateKey: string): Promise<TransferResult> {
+    const escrow = this.escrows.get(escrowId);
+    if (!escrow) throw new Error(`Escrow ${escrowId} not found`);
+
+    if (escrow.status !== EscrowStatus.CREATED) {
+      throw new Error(`Escrow ${escrowId} already funded`);
+    }
+
+    if (!this.config.platformWallet) {
+      throw new Error('Platform wallet not configured');
+    }
+
+    console.log(`[EscrowManager] Executing REAL USDC escrow deposit: $${escrow.amount}`);
+
+    const usdcTransfer = getUSDCTransfer();
+    const result = await usdcTransfer.transferWithPrivateKey(clientPrivateKey, {
+      recipient: this.config.platformWallet,
+      amount: escrow.amount,
+      reason: `Escrow deposit: ${escrowId}`,
+    });
+
+    if (!result.success || !result.txHash) {
+      throw new Error(`Escrow funding failed: ${result.error || 'Unknown error'}`);
+    }
+
+    // Update escrow state
+    escrow.status = EscrowStatus.FUNDED;
+    escrow.fundedAt = Date.now();
+    escrow.transactionHashes.deposit = result.txHash;
+    this.totalEscrowed += escrow.amount;
+    this.escrows.set(escrowId, escrow);
+
+    this.emit('escrow:funded', escrow, result.txHash);
+
+    console.log(`[EscrowManager] REAL escrow funded!`);
+    console.log(`[EscrowManager]   TX: ${result.txHash}`);
+    console.log(`[EscrowManager]   Block: ${result.blockNumber}`);
+    console.log(`[EscrowManager]   Explorer: ${result.explorerUrl}`);
+
+    return result;
+  }
+
+  /**
    * Release funds to provider on successful completion
+   * Supports both simulated and real USDC transfers
    */
   async release(params: EscrowRelease): Promise<{
     txHash: string;
     amount: number;
     refundAmount: number;
+    blockNumber?: number;
+    explorerUrl?: string;
   }> {
     const escrow = this.escrows.get(params.escrowId);
     if (!escrow) throw new Error(`Escrow ${params.escrowId} not found`);
@@ -146,9 +254,11 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
       throw new Error(`Release amount ${params.amount} exceeds escrow ${escrow.amount}`);
     }
 
-    // Simulate x402 payment (in production, this goes through thirdweb facilitator)
-    const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
     const refundAmount = escrow.amount - params.amount;
+
+    // Simulated release (backward compatibility)
+    const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
+    console.log(`[EscrowManager] Simulated release: ${txHash}`);
 
     escrow.status = EscrowStatus.RELEASED;
     escrow.releasedAt = Date.now();
@@ -173,11 +283,84 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
   }
 
   /**
+   * Release escrow with REAL USDC transfer to provider
+   */
+  async releaseReal(params: EscrowRelease & { escrowPrivateKey?: string }): Promise<{
+    txHash: string;
+    amount: number;
+    refundAmount: number;
+    blockNumber?: number;
+    explorerUrl?: string;
+  }> {
+    const escrow = this.escrows.get(params.escrowId);
+    if (!escrow) throw new Error(`Escrow ${params.escrowId} not found`);
+
+    if (escrow.status !== EscrowStatus.FUNDED) {
+      throw new Error(`Escrow ${params.escrowId} is not in funded state`);
+    }
+
+    if (params.amount > escrow.amount) {
+      throw new Error(`Release amount ${params.amount} exceeds escrow ${escrow.amount}`);
+    }
+
+    const privateKey = params.escrowPrivateKey || this.config.escrowPrivateKey;
+    if (!privateKey) {
+      throw new Error('Escrow private key not configured');
+    }
+
+    const refundAmount = escrow.amount - params.amount;
+
+    console.log(`[EscrowManager] Executing REAL USDC release: $${params.amount} to ${params.recipientAddress}`);
+
+    const usdcTransfer = getUSDCTransfer();
+    const result = await usdcTransfer.transferWithPrivateKey(privateKey, {
+      recipient: params.recipientAddress,
+      amount: params.amount,
+      reason: `Escrow release: ${params.escrowId}`,
+    });
+
+    if (!result.success || !result.txHash) {
+      throw new Error(`Escrow release failed: ${result.error || 'Unknown error'}`);
+    }
+
+    escrow.status = EscrowStatus.RELEASED;
+    escrow.releasedAt = Date.now();
+    escrow.recipientAddress = params.recipientAddress;
+    escrow.releasedAmount = params.amount;
+    escrow.refundedAmount = refundAmount;
+    escrow.transactionHashes.release = result.txHash;
+
+    this.totalReleased += params.amount;
+    if (refundAmount > 0) {
+      this.totalRefunded += refundAmount;
+    }
+
+    this.escrows.set(params.escrowId, escrow);
+    this.emit('escrow:released', escrow, params.amount, params.recipientAddress);
+
+    console.log(`[EscrowManager] REAL escrow released!`);
+    console.log(`[EscrowManager]   TX: ${result.txHash}`);
+    console.log(`[EscrowManager]   Block: ${result.blockNumber}`);
+    console.log(`[EscrowManager]   Explorer: ${result.explorerUrl}`);
+
+    return {
+      txHash: result.txHash,
+      amount: params.amount,
+      refundAmount,
+      blockNumber: result.blockNumber,
+      explorerUrl: result.explorerUrl,
+    };
+  }
+
+  /**
    * Full refund to client (intent failed or cancelled)
+   * Simulated version for backward compatibility
    */
   async refund(escrowId: string, reason?: string): Promise<{
     txHash: string;
     amount: number;
+    blockNumber?: number;
+    explorerUrl?: string;
   }> {
     const escrow = this.escrows.get(escrowId);
     if (!escrow) throw new Error(`Escrow ${escrowId} not found`);
@@ -188,6 +371,7 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
 
     // Simulate refund transaction
     const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
+    console.log(`[EscrowManager] Simulated refund: ${txHash}`);
 
     escrow.status = EscrowStatus.REFUNDED;
     escrow.refundedAt = Date.now();
@@ -206,7 +390,65 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
   }
 
   /**
+   * Full refund to client with REAL USDC transfer
+   */
+  async refundReal(escrowId: string, escrowPrivateKey?: string, reason?: string): Promise<{
+    txHash: string;
+    amount: number;
+    blockNumber?: number;
+    explorerUrl?: string;
+  }> {
+    const escrow = this.escrows.get(escrowId);
+    if (!escrow) throw new Error(`Escrow ${escrowId} not found`);
+
+    if (escrow.status !== EscrowStatus.FUNDED && escrow.status !== EscrowStatus.DISPUTED) {
+      throw new Error(`Escrow ${escrowId} cannot be refunded`);
+    }
+
+    const privateKey = escrowPrivateKey || this.config.escrowPrivateKey;
+    if (!privateKey) {
+      throw new Error('Escrow private key not configured');
+    }
+
+    console.log(`[EscrowManager] Executing REAL USDC refund: $${escrow.amount} to ${escrow.clientAddress}`);
+
+    const usdcTransfer = getUSDCTransfer();
+    const result = await usdcTransfer.transferWithPrivateKey(privateKey, {
+      recipient: escrow.clientAddress,
+      amount: escrow.amount,
+      reason: reason || `Escrow refund: ${escrowId}`,
+    });
+
+    if (!result.success || !result.txHash) {
+      throw new Error(`Escrow refund failed: ${result.error || 'Unknown error'}`);
+    }
+
+    escrow.status = EscrowStatus.REFUNDED;
+    escrow.refundedAt = Date.now();
+    escrow.refundedAmount = escrow.amount;
+    escrow.transactionHashes.refund = result.txHash;
+
+    this.totalRefunded += escrow.amount;
+    this.escrows.set(escrowId, escrow);
+
+    this.emit('escrow:refunded', escrow, escrow.amount);
+
+    console.log(`[EscrowManager] REAL escrow refunded!`);
+    console.log(`[EscrowManager]   TX: ${result.txHash}`);
+    console.log(`[EscrowManager]   Block: ${result.blockNumber}`);
+    console.log(`[EscrowManager]   Explorer: ${result.explorerUrl}`);
+
+    return {
+      txHash: result.txHash,
+      amount: escrow.amount,
+      blockNumber: result.blockNumber,
+      explorerUrl: result.explorerUrl,
+    };
+  }
+
+  /**
    * Slash a portion of escrow (for provider penalties)
+   * Simulated version for backward compatibility
    */
   async slash(
     escrowId: string,
@@ -217,6 +459,8 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
     txHash: string;
     slashedAmount: number;
     remainingAmount: number;
+    blockNumber?: number;
+    explorerUrl?: string;
   }> {
     const escrow = this.escrows.get(escrowId);
     if (!escrow) throw new Error(`Escrow ${escrowId} not found`);
@@ -230,6 +474,7 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
 
     // Simulate slash transaction
     const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
+    console.log(`[EscrowManager] Simulated slash: ${txHash}`);
 
     escrow.status = EscrowStatus.SLASHED;
     escrow.slashedAmount = slashAmount;
@@ -243,6 +488,75 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
       txHash,
       slashedAmount: slashAmount,
       remainingAmount
+    };
+  }
+
+  /**
+   * Slash a portion of escrow with REAL USDC transfer
+   * Transfers slashed amount to platform/penalty recipient
+   */
+  async slashReal(
+    escrowId: string,
+    amount: number,
+    recipientAddress: string,
+    reason: string,
+    escrowPrivateKey?: string
+  ): Promise<{
+    txHash: string;
+    slashedAmount: number;
+    remainingAmount: number;
+    blockNumber?: number;
+    explorerUrl?: string;
+  }> {
+    const escrow = this.escrows.get(escrowId);
+    if (!escrow) throw new Error(`Escrow ${escrowId} not found`);
+
+    if (escrow.status !== EscrowStatus.FUNDED) {
+      throw new Error(`Escrow ${escrowId} is not funded`);
+    }
+
+    const privateKey = escrowPrivateKey || this.config.escrowPrivateKey;
+    if (!privateKey) {
+      throw new Error('Escrow private key not configured');
+    }
+
+    const slashAmount = Math.min(amount, escrow.amount);
+    const remainingAmount = escrow.amount - slashAmount;
+
+    console.log(`[EscrowManager] Executing REAL USDC slash: $${slashAmount} to ${recipientAddress}`);
+    console.log(`[EscrowManager] Reason: ${reason}`);
+
+    const usdcTransfer = getUSDCTransfer();
+    const result = await usdcTransfer.transferWithPrivateKey(privateKey, {
+      recipient: recipientAddress,
+      amount: slashAmount,
+      reason: `Escrow slash: ${reason}`,
+    });
+
+    if (!result.success || !result.txHash) {
+      throw new Error(`Escrow slash failed: ${result.error || 'Unknown error'}`);
+    }
+
+    escrow.status = EscrowStatus.SLASHED;
+    escrow.slashedAmount = slashAmount;
+    escrow.refundedAmount = remainingAmount;
+    escrow.transactionHashes.slash = result.txHash;
+
+    this.escrows.set(escrowId, escrow);
+    this.emit('escrow:slashed', escrow, slashAmount, reason);
+
+    console.log(`[EscrowManager] REAL escrow slashed!`);
+    console.log(`[EscrowManager]   TX: ${result.txHash}`);
+    console.log(`[EscrowManager]   Block: ${result.blockNumber}`);
+    console.log(`[EscrowManager]   Slashed: $${slashAmount}, Remaining: $${remainingAmount}`);
+    console.log(`[EscrowManager]   Explorer: ${result.explorerUrl}`);
+
+    return {
+      txHash: result.txHash,
+      slashedAmount: slashAmount,
+      remainingAmount,
+      blockNumber: result.blockNumber,
+      explorerUrl: result.explorerUrl,
     };
   }
 
@@ -331,14 +645,28 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
     this.totalReleased = 0;
     this.totalRefunded = 0;
   }
+
+  /**
+   * Get current configuration
+   */
+  getConfig(): Required<EscrowConfig> {
+    return { ...this.config };
+  }
+
+  /**
+   * Check if real transfers are enabled
+   */
+  isRealTransfersEnabled(): boolean {
+    return this.config.enableRealTransfers;
+  }
 }
 
 // Singleton instance
 let escrowManagerInstance: EscrowManager | null = null;
 
-export function getEscrowManager(): EscrowManager {
+export function getEscrowManager(config?: EscrowConfig): EscrowManager {
   if (!escrowManagerInstance) {
-    escrowManagerInstance = new EscrowManager();
+    escrowManagerInstance = new EscrowManager(config);
   }
   return escrowManagerInstance;
 }
@@ -346,3 +674,6 @@ export function getEscrowManager(): EscrowManager {
 export function resetEscrowManager(): void {
   escrowManagerInstance = null;
 }
+
+// Re-export TransferResult for API routes
+export type { TransferResult };

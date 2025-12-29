@@ -102,6 +102,44 @@ export function setupDisputeRoutes(
     }
   });
 
+  // -------------------- GET DISPUTE CONFIG --------------------
+  // IMPORTANT: This route MUST be before /:disputeId to avoid matching "config" as an ID
+  router.get('/config', async (req: Request, res: Response) => {
+    try {
+      const config = disputeResolver.getConfig();
+      const isRealEnabled = disputeResolver.isRealOraclesEnabled();
+      const oracles = disputeResolver.getRegisteredOracles();
+
+      res.json({
+        success: true,
+        data: {
+          realOraclesEnabled: isRealEnabled,
+          registeredOracles: oracles,
+          deviationThreshold: config.deviationThreshold * 100 + '%',
+          slashPercentage: config.slashPercentage * 100 + '%',
+          evidenceTimeoutMs: config.evidenceTimeoutMs
+        },
+        timestamp: Date.now()
+      } as ApiResponse<{
+        realOraclesEnabled: boolean;
+        registeredOracles: string[];
+        deviationThreshold: string;
+        slashPercentage: string;
+        evidenceTimeoutMs: number;
+      }>);
+    } catch (error) {
+      console.error('Error getting dispute config:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'CONFIG_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to get dispute config'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
   // -------------------- GET DISPUTE --------------------
   router.get('/:disputeId', async (req: Request, res: Response) => {
     try {

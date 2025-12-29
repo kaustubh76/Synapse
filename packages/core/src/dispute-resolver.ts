@@ -1,10 +1,29 @@
 // ============================================================
 // SYNAPSE Dispute Resolution System
 // Automated dispute handling with evidence collection
+// NOW WITH REAL ORACLE INTEGRATION (CoinGecko, Open-Meteo)
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
 import { nanoid } from 'nanoid';
+import { getRealToolProvider } from './tools/real-tool-providers.js';
+
+// -------------------- DISPUTE CONFIGURATION --------------------
+
+export interface DisputeResolverConfig {
+  /** Use real oracles (CoinGecko, Open-Meteo) instead of hardcoded values */
+  enableRealOracles?: boolean;
+  /** Evidence collection timeout in ms */
+  evidenceTimeoutMs?: number;
+  /** Deviation threshold for provider fault (default: 5%) */
+  deviationThreshold?: number;
+  /** Percentage to slash on provider fault (default: 10%) */
+  slashPercentage?: number;
+  /** Minimum reputation penalty */
+  minReputationPenalty?: number;
+  /** Maximum reputation penalty */
+  maxReputationPenalty?: number;
+}
 
 export enum DisputeStatus {
   OPENED = 'OPENED',
@@ -89,53 +108,143 @@ interface ReferenceOracle {
  *
  * Handles disputes between clients and providers.
  * Uses automated evidence collection and reference oracles.
+ *
+ * NOW SUPPORTS REAL ORACLES (CoinGecko, Open-Meteo)!
  */
 export class DisputeResolver extends EventEmitter<DisputeResolverEvents> {
   private disputes: Map<string, Dispute> = new Map();
   private disputesByIntent: Map<string, string> = new Map();
   private referenceOracles: Map<string, ReferenceOracle> = new Map();
-  private config = {
-    evidenceTimeoutMs: 300000,    // 5 minutes for evidence collection
-    deviationThreshold: 0.05,     // 5% deviation triggers client win
-    slashPercentage: 0.1,         // 10% slash on provider fault
-    minReputationPenalty: 0.1,
-    maxReputationPenalty: 0.5
-  };
+  private config: Required<DisputeResolverConfig>;
 
-  constructor() {
+  constructor(config: DisputeResolverConfig = {}) {
     super();
-    this.registerDefaultOracles();
+    this.config = {
+      enableRealOracles: config.enableRealOracles ?? (process.env.ENABLE_REAL_ORACLES === 'true'),
+      evidenceTimeoutMs: config.evidenceTimeoutMs ?? 300000,    // 5 minutes
+      deviationThreshold: config.deviationThreshold ?? 0.05,    // 5%
+      slashPercentage: config.slashPercentage ?? 0.1,           // 10%
+      minReputationPenalty: config.minReputationPenalty ?? 0.1,
+      maxReputationPenalty: config.maxReputationPenalty ?? 0.5,
+    };
+
+    if (this.config.enableRealOracles) {
+      console.log('[DisputeResolver] REAL oracles ENABLED (CoinGecko, Open-Meteo)');
+      this.registerRealOracles();
+    } else {
+      console.log('[DisputeResolver] Using simulated oracles');
+      this.registerDefaultOracles();
+    }
   }
 
   /**
-   * Register default reference oracles
+   * Register default reference oracles (simulated, for backward compatibility)
    */
   private registerDefaultOracles(): void {
-    // Crypto price oracle
+    // Crypto price oracle (simulated)
     this.referenceOracles.set('crypto.price', {
-      name: 'CryptoOracle',
+      name: 'SimulatedCryptoOracle',
       type: 'crypto.price',
       getValue: async (params: { symbol: string }) => {
-        // Simulate reference price (in production, aggregate from multiple sources)
+        // Simulated prices
         const prices: Record<string, number> = {
           'BTC': 98500,
           'ETH': 3850,
           'SOL': 245
         };
+        console.log(`[DisputeResolver] Simulated crypto oracle: ${params.symbol} = $${prices[params.symbol.toUpperCase()]}`);
         return prices[params.symbol.toUpperCase()] || null;
       }
     });
 
-    // Weather oracle
+    // Weather oracle (simulated)
     this.referenceOracles.set('weather.current', {
-      name: 'WeatherOracle',
+      name: 'SimulatedWeatherOracle',
       type: 'weather.current',
       getValue: async (params: { city: string }) => {
-        // Simulate reference weather (in production, aggregate from weather APIs)
+        const temp = 72 + Math.random() * 5 - 2.5;
+        console.log(`[DisputeResolver] Simulated weather oracle: ${params.city} = ${temp.toFixed(1)}°F`);
         return {
-          temperature: 72 + Math.random() * 5 - 2.5,
+          temperature: temp,
           condition: 'Clear'
         };
+      }
+    });
+  }
+
+  /**
+   * Register REAL reference oracles (CoinGecko, Open-Meteo)
+   */
+  private registerRealOracles(): void {
+    const toolProvider = getRealToolProvider();
+
+    // REAL Crypto price oracle (CoinGecko)
+    this.referenceOracles.set('crypto.price', {
+      name: 'CoinGecko',
+      type: 'crypto.price',
+      getValue: async (params: { symbol: string }) => {
+        console.log(`[DisputeResolver] Querying REAL CoinGecko oracle for ${params.symbol}...`);
+
+        const result = await toolProvider.getCryptoPrice(params.symbol);
+
+        if (result.success && result.data) {
+          console.log(`[DisputeResolver] CoinGecko: ${params.symbol} = $${result.data.price}`);
+          console.log(`[DisputeResolver]   24h Change: ${result.data.change24h}%`);
+          console.log(`[DisputeResolver]   Source: ${result.source}`);
+          return result.data.price;
+        }
+
+        console.log(`[DisputeResolver] CoinGecko query failed: ${result.error}`);
+        return null;
+      }
+    });
+
+    // REAL Weather oracle (Open-Meteo)
+    this.referenceOracles.set('weather.current', {
+      name: 'Open-Meteo',
+      type: 'weather.current',
+      getValue: async (params: { city: string }) => {
+        console.log(`[DisputeResolver] Querying REAL Open-Meteo oracle for ${params.city}...`);
+
+        const result = await toolProvider.getWeather(params.city);
+
+        if (result.success && result.data) {
+          console.log(`[DisputeResolver] Open-Meteo: ${params.city} = ${result.data.temperature}°C`);
+          console.log(`[DisputeResolver]   Condition: ${result.data.condition}`);
+          console.log(`[DisputeResolver]   Source: ${result.source}`);
+          return {
+            temperature: result.data.temperature,
+            condition: result.data.condition,
+            humidity: result.data.humidity,
+            wind: result.data.wind,
+          };
+        }
+
+        console.log(`[DisputeResolver] Open-Meteo query failed: ${result.error}`);
+        return null;
+      }
+    });
+
+    // REAL News oracle (HackerNews/NewsAPI)
+    this.referenceOracles.set('news.latest', {
+      name: 'NewsOracle',
+      type: 'news.latest',
+      getValue: async (params: { query?: string }) => {
+        console.log(`[DisputeResolver] Querying REAL news oracle for "${params.query || 'latest'}"...`);
+
+        const result = await toolProvider.getNews(params.query);
+
+        if (result.success && result.data) {
+          console.log(`[DisputeResolver] News: Found ${result.data.totalResults} articles`);
+          console.log(`[DisputeResolver]   Source: ${result.source}`);
+          return {
+            articles: result.data.articles.length,
+            source: result.source,
+          };
+        }
+
+        console.log(`[DisputeResolver] News query failed: ${result.error}`);
+        return null;
       }
     });
   }
@@ -450,14 +559,35 @@ export class DisputeResolver extends EventEmitter<DisputeResolverEvents> {
     this.disputes.clear();
     this.disputesByIntent.clear();
   }
+
+  /**
+   * Get current configuration
+   */
+  getConfig(): Required<DisputeResolverConfig> {
+    return { ...this.config };
+  }
+
+  /**
+   * Check if real oracles are enabled
+   */
+  isRealOraclesEnabled(): boolean {
+    return this.config.enableRealOracles;
+  }
+
+  /**
+   * Get list of registered oracles
+   */
+  getRegisteredOracles(): string[] {
+    return Array.from(this.referenceOracles.keys());
+  }
 }
 
 // Singleton instance
 let disputeResolverInstance: DisputeResolver | null = null;
 
-export function getDisputeResolver(): DisputeResolver {
+export function getDisputeResolver(config?: DisputeResolverConfig): DisputeResolver {
   if (!disputeResolverInstance) {
-    disputeResolverInstance = new DisputeResolver();
+    disputeResolverInstance = new DisputeResolver(config);
   }
   return disputeResolverInstance;
 }

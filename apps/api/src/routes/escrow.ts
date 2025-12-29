@@ -74,6 +74,41 @@ export function setupEscrowRoutes(
     }
   });
 
+  // -------------------- GET ESCROW CONFIG --------------------
+  // IMPORTANT: This route MUST be before /:escrowId to avoid matching "config" as an ID
+  router.get('/config', async (req: Request, res: Response) => {
+    try {
+      const config = escrowManager.getConfig();
+      const isRealEnabled = escrowManager.isRealTransfersEnabled();
+
+      res.json({
+        success: true,
+        data: {
+          realTransfersEnabled: isRealEnabled,
+          network: config.network,
+          platformWallet: config.platformWallet || 'Not configured',
+          escrowWalletConfigured: !!config.escrowPrivateKey
+        },
+        timestamp: Date.now()
+      } as ApiResponse<{
+        realTransfersEnabled: boolean;
+        network: string;
+        platformWallet: string;
+        escrowWalletConfigured: boolean;
+      }>);
+    } catch (error) {
+      console.error('Error getting escrow config:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'CONFIG_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to get escrow config'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
   // -------------------- GET ESCROW --------------------
   router.get('/:escrowId', async (req: Request, res: Response) => {
     try {
@@ -376,6 +411,208 @@ export function setupEscrowRoutes(
         error: {
           code: 'CHECK_ESCROW_ERROR',
           message: error instanceof Error ? error.message : 'Failed to check escrow'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
+  // ============================================================
+  // REAL USDC TRANSFER ENDPOINTS
+  // These endpoints execute actual on-chain transactions
+  // ============================================================
+
+  // -------------------- FUND ESCROW WITH REAL USDC --------------------
+  router.post('/:escrowId/fund-real', async (req: Request, res: Response) => {
+    try {
+      const { escrowId } = req.params;
+      const { clientPrivateKey } = req.body;
+
+      if (!clientPrivateKey) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'clientPrivateKey is required for real USDC funding'
+          },
+          timestamp: Date.now()
+        } as ApiResponse<never>);
+      }
+
+      const result = await escrowManager.fundEscrowReal(escrowId, clientPrivateKey);
+
+      io.emit('escrow:funded:real', {
+        escrowId,
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        explorerUrl: result.explorerUrl,
+        timestamp: Date.now()
+      });
+
+      res.json({
+        success: true,
+        data: {
+          escrowId,
+          txHash: result.txHash,
+          blockNumber: result.blockNumber,
+          explorerUrl: result.explorerUrl,
+          amount: result.amount,
+          message: 'Real USDC escrow funded successfully'
+        },
+        timestamp: Date.now()
+      });
+    } catch (error) {
+      console.error('Error funding escrow with real USDC:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'REAL_FUND_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to fund escrow with real USDC'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
+  // -------------------- RELEASE ESCROW WITH REAL USDC --------------------
+  router.post('/:escrowId/release-real', async (req: Request, res: Response) => {
+    try {
+      const { escrowId } = req.params;
+      const { recipientAddress, amount, escrowPrivateKey, reason } = req.body;
+
+      if (!recipientAddress || typeof amount !== 'number') {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'recipientAddress and amount are required'
+          },
+          timestamp: Date.now()
+        } as ApiResponse<never>);
+      }
+
+      const result = await escrowManager.releaseReal({
+        escrowId,
+        recipientAddress,
+        amount,
+        reason,
+        escrowPrivateKey
+      });
+
+      io.emit('escrow:released:real', {
+        escrowId,
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        explorerUrl: result.explorerUrl,
+        amount: result.amount,
+        recipient: recipientAddress,
+        timestamp: Date.now()
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...result,
+          message: 'Real USDC escrow released successfully'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<typeof result>);
+    } catch (error) {
+      console.error('Error releasing escrow with real USDC:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'REAL_RELEASE_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to release escrow with real USDC'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
+  // -------------------- REFUND ESCROW WITH REAL USDC --------------------
+  router.post('/:escrowId/refund-real', async (req: Request, res: Response) => {
+    try {
+      const { escrowId } = req.params;
+      const { escrowPrivateKey, reason } = req.body;
+
+      const result = await escrowManager.refundReal(escrowId, escrowPrivateKey, reason);
+
+      io.emit('escrow:refunded:real', {
+        escrowId,
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        explorerUrl: result.explorerUrl,
+        amount: result.amount,
+        timestamp: Date.now()
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...result,
+          message: 'Real USDC escrow refunded successfully'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<typeof result>);
+    } catch (error) {
+      console.error('Error refunding escrow with real USDC:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'REAL_REFUND_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to refund escrow with real USDC'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
+  // -------------------- SLASH ESCROW WITH REAL USDC --------------------
+  router.post('/:escrowId/slash-real', async (req: Request, res: Response) => {
+    try {
+      const { escrowId } = req.params;
+      const { amount, recipientAddress, reason, escrowPrivateKey } = req.body;
+
+      if (typeof amount !== 'number' || !recipientAddress || !reason) {
+        return res.status(400).json({
+          success: false,
+          error: {
+            code: 'VALIDATION_ERROR',
+            message: 'amount (number), recipientAddress, and reason are required'
+          },
+          timestamp: Date.now()
+        } as ApiResponse<never>);
+      }
+
+      const result = await escrowManager.slashReal(escrowId, amount, recipientAddress, reason, escrowPrivateKey);
+
+      io.emit('escrow:slashed:real', {
+        escrowId,
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        explorerUrl: result.explorerUrl,
+        slashedAmount: result.slashedAmount,
+        remainingAmount: result.remainingAmount,
+        reason,
+        timestamp: Date.now()
+      });
+
+      res.json({
+        success: true,
+        data: {
+          ...result,
+          message: 'Real USDC escrow slashed successfully'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<typeof result>);
+    } catch (error) {
+      console.error('Error slashing escrow with real USDC:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'REAL_SLASH_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to slash escrow with real USDC'
         },
         timestamp: Date.now()
       } as ApiResponse<never>);

@@ -33,8 +33,10 @@
   },
   "dependencies": {
     "@synapse/types": "*",
+    "@synapse/mcp-x402": "*",
     "nanoid": "^5.0.4",
-    "eventemitter3": "^5.0.1"
+    "eventemitter3": "^5.0.1",
+    "ethers": "^6.9.0"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

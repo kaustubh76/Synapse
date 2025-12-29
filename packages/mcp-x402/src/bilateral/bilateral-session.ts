@@ -8,6 +8,7 @@ import { EventEmitter } from 'eventemitter3';
 import { nanoid } from 'nanoid';
 import { ethers } from 'ethers';
 import type { MCPIdentity } from '../identity/mcp-identity.js';
+import { getUSDCTransfer } from '../verification/usdc-transfer.js';
 
 // -------------------- TYPES --------------------
 
@@ -69,6 +70,10 @@ export interface SettlementResult {
   to: string;
   /** Transaction hash (if settled on-chain) */
   txHash?: string;
+  /** Block number (if settled on-chain) */
+  blockNumber?: number;
+  /** Explorer URL (if settled on-chain) */
+  explorerUrl?: string;
   /** Settlement timestamp */
   settledAt: number;
   /** Total transactions in session */
@@ -310,6 +315,87 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     console.log(`[Bilateral] Session settled: ${sessionId}`);
     console.log(`[Bilateral]   Net: $${netAmount.toFixed(6)} USDC ${direction}`);
     console.log(`[Bilateral]   Transactions: ${session.transactions.length}`);
+
+    return result;
+  }
+
+  /**
+   * Settle session with REAL on-chain USDC payment
+   * All settlements go to the platform wallet
+   */
+  async settleSessionWithPayment(
+    sessionId: string,
+    privateKey: string,
+    platformWallet: string
+  ): Promise<SettlementResult> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${sessionId}`);
+    }
+
+    if (session.status === 'settled') {
+      throw new Error('Session already settled');
+    }
+
+    // Calculate net amount
+    const netAmount = Math.abs(session.netBalance);
+
+    // If below minimum, just mark as settled without transfer
+    if (netAmount < this.config.minimumSettlement) {
+      console.log(`[Bilateral] Net amount $${netAmount} below minimum, settling without transfer`);
+      return this.settleSession(sessionId);
+    }
+
+    session.status = 'settling';
+    this.emit('session:settling', session);
+
+    // Determine direction for accounting purposes
+    const direction: 'client-to-server' | 'server-to-client' | 'none' =
+      session.netBalance > 0 ? 'server-to-client' :
+      session.netBalance < 0 ? 'client-to-server' : 'none';
+
+    // Execute REAL USDC transfer to platform wallet
+    console.log(`[Bilateral] Executing real USDC settlement: $${netAmount} to ${platformWallet}`);
+
+    const usdcTransfer = getUSDCTransfer();
+    const transferResult = await usdcTransfer.transferWithPrivateKey(privateKey, {
+      recipient: platformWallet,
+      amount: netAmount,
+      reason: `Bilateral settlement: ${sessionId}`,
+    });
+
+    if (!transferResult.success || !transferResult.txHash) {
+      session.status = 'active'; // Revert to active on failure
+      throw new Error(`Settlement transfer failed: ${transferResult.error || 'Unknown error'}`);
+    }
+
+    // Mark all transactions as settled
+    for (const tx of session.transactions) {
+      tx.status = 'settled';
+    }
+
+    session.status = 'settled';
+
+    const result: SettlementResult = {
+      sessionId,
+      netAmount,
+      direction,
+      from: session.clientAddress,
+      to: platformWallet,
+      txHash: transferResult.txHash,
+      blockNumber: transferResult.blockNumber,
+      explorerUrl: transferResult.explorerUrl,
+      settledAt: Date.now(),
+      transactionCount: session.transactions.length,
+    };
+
+    this.emit('session:settled', result);
+
+    console.log(`[Bilateral] Real settlement complete!`);
+    console.log(`[Bilateral]   TX: ${transferResult.txHash}`);
+    console.log(`[Bilateral]   Block: ${transferResult.blockNumber}`);
+    console.log(`[Bilateral]   Amount: $${netAmount} USDC`);
+    console.log(`[Bilateral]   Explorer: ${transferResult.explorerUrl}`);
 
     return result;
   }

@@ -6,7 +6,7 @@ import {
   Brain, Zap, DollarSign, Clock, Award, TrendingUp, Sparkles, Shield,
   Wifi, Home, CreditCard, Coins, Wallet, RefreshCw, ExternalLink, Check,
   Copy, AlertCircle, Trophy, Users, Timer, CheckCircle2, XCircle, Loader2,
-  Target, Scale
+  Target, Scale, ChevronRight
 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -236,7 +236,7 @@ export default function LLMPage() {
     }
   }, [agentId, walletData, loadCreditProfile])
 
-  // Process USDC payment for selection
+  // Process USDC payment for selection via real API
   const processPayment = async (amount: number): Promise<{ success: boolean; txHash?: string; error?: string }> => {
     if (!walletData?.address) {
       return { success: false, error: 'No wallet connected' }
@@ -249,25 +249,46 @@ export default function LLMPage() {
         return { success: false, error: `Insufficient balance: ${balance} USDC < ${amount} USDC` }
       }
 
-      console.log(`[LLM] Processing payment: ${amount} USDC from ${walletData.address}`)
+      console.log(`[LLM] Processing real USDC payment: ${amount} USDC`)
 
-      // Simulate transaction processing delay
-      await new Promise(resolve => setTimeout(resolve, 1500))
+      // Call the flow API to execute real payment via EigenCloud wallet
+      const response = await fetch(`${API_URL}/api/flow/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentId: walletData.address,
+          agentName: 'llm-selector',
+        })
+      })
 
-      // Generate a mock transaction hash
-      const mockTxHash = '0x' + Array.from({ length: 64 }, () =>
-        Math.floor(Math.random() * 16).toString(16)
-      ).join('')
-
-      console.log(`[LLM] Payment simulated - TX: ${mockTxHash}`)
-
-      // Update balance display
-      if (walletBalance) {
-        const newBalance = (balance - amount).toFixed(2)
-        setWalletBalance({ ...walletBalance, usdc: newBalance })
+      const flowData = await response.json()
+      if (!flowData.success) {
+        return { success: false, error: flowData.error?.message || 'Failed to start flow session' }
       }
 
-      return { success: true, txHash: mockTxHash }
+      // Execute payment via the flow pay endpoint
+      const payResponse = await fetch(`${API_URL}/api/flow/${flowData.data.flowSessionId}/pay`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount,
+          resource: 'llm.selection',
+          type: 'llm',
+        })
+      })
+
+      const payData = await payResponse.json()
+      if (!payData.success) {
+        // If real payment fails, the API will return the actual error
+        return { success: false, error: payData.error?.message || 'Real USDC payment failed - check wallet configuration' }
+      }
+
+      console.log(`[LLM] Real USDC payment complete - TX: ${payData.data.txHash}`)
+
+      // Refresh balance after real payment
+      await fetchWalletBalance(walletData.address)
+
+      return { success: true, txHash: payData.data.txHash }
     } catch (error) {
       return { success: false, error: error instanceof Error ? error.message : 'Payment failed' }
     }
@@ -493,7 +514,7 @@ export default function LLMPage() {
           </p>
         </motion.div>
 
-        {/* Credit Profile */}
+        {/* Credit Profile - Mini Display */}
         {creditProfile && walletData && (
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -505,32 +526,98 @@ export default function LLMPage() {
                 <Shield className="w-6 h-6 text-purple-400" />
                 <h3 className="text-lg font-semibold text-white">Your Credit Profile</h3>
               </div>
+              <Link
+                href="/credit"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 transition-colors text-sm font-medium"
+              >
+                <CreditCard className="w-4 h-4" />
+                Full Dashboard
+              </Link>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <div className="bg-gray-900/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">Credit Score</div>
-                <div className={`text-2xl font-bold ${getTierColor(creditProfile.creditTier)}`}>
-                  {creditProfile.creditScore}
+
+            {/* Mini Score Gauge */}
+            <div className="flex items-center gap-6 mb-4">
+              <div className="relative w-24 h-24">
+                <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke="#374151"
+                    strokeWidth="8"
+                  />
+                  <circle
+                    cx="50"
+                    cy="50"
+                    r="40"
+                    fill="none"
+                    stroke={creditProfile.creditTier === 'exceptional' ? '#a855f7' :
+                            creditProfile.creditTier === 'excellent' ? '#3b82f6' :
+                            creditProfile.creditTier === 'good' ? '#22c55e' :
+                            creditProfile.creditTier === 'fair' ? '#eab308' : '#ef4444'}
+                    strokeWidth="8"
+                    strokeLinecap="round"
+                    strokeDasharray={`${((creditProfile.creditScore - 300) / 550) * 251.2} 251.2`}
+                  />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span className={`text-2xl font-bold ${getTierColor(creditProfile.creditTier)}`}>
+                    {creditProfile.creditScore}
+                  </span>
                 </div>
-                <div className="text-xs text-gray-500 capitalize">{creditProfile.creditTier}</div>
               </div>
-              <div className="bg-gray-900/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">Available</div>
-                <div className="text-xl font-bold text-green-400">
-                  ${creditProfile.availableCredit?.toFixed(2) ?? '0.00'}
+
+              <div className="flex-1 grid grid-cols-3 gap-3">
+                <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">Tier</div>
+                  <div className={`text-lg font-bold capitalize ${getTierColor(creditProfile.creditTier)}`}>
+                    {creditProfile.creditTier}
+                  </div>
+                </div>
+                <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">Discount</div>
+                  <div className="text-lg font-bold text-green-400">
+                    {((creditProfile.tierDiscount ?? 0) * 100).toFixed(0)}% OFF
+                  </div>
+                </div>
+                <div className="bg-gray-900/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-gray-400 mb-1">Available Credit</div>
+                  <div className="text-lg font-bold text-blue-400">
+                    ${creditProfile.availableCredit?.toFixed(0) ?? '0'}
+                  </div>
                 </div>
               </div>
-              <div className="bg-gray-900/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">Discount</div>
-                <div className="text-xl font-bold text-purple-400">
-                  {((creditProfile.tierDiscount ?? 0) * 100).toFixed(0)}%
-                </div>
+            </div>
+
+            {/* Progress to next tier */}
+            <div className="bg-gray-900/50 rounded-lg p-3">
+              <div className="flex items-center justify-between text-sm mb-2">
+                <span className="text-gray-400">Progress to next tier</span>
+                <span className="text-purple-400 font-medium">
+                  {creditProfile.creditTier === 'exceptional' ? 'Max tier reached!' :
+                   creditProfile.creditTier === 'excellent' ? `${800 - creditProfile.creditScore} pts to Exceptional` :
+                   creditProfile.creditTier === 'good' ? `${740 - creditProfile.creditScore} pts to Excellent` :
+                   creditProfile.creditTier === 'fair' ? `${670 - creditProfile.creditScore} pts to Good` :
+                   `${580 - creditProfile.creditScore} pts to Fair`}
+                </span>
               </div>
-              <div className="bg-gray-900/50 rounded-lg p-3">
-                <div className="text-xs text-gray-400 mb-1">Selection Cost</div>
-                <div className="text-xl font-bold text-blue-400">
-                  ${LLM_SELECTION_PRICE} USDC
-                </div>
+              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={`h-full transition-all duration-500 ${
+                    creditProfile.creditTier === 'exceptional' ? 'bg-purple-500' :
+                    creditProfile.creditTier === 'excellent' ? 'bg-blue-500' :
+                    creditProfile.creditTier === 'good' ? 'bg-green-500' :
+                    creditProfile.creditTier === 'fair' ? 'bg-yellow-500' : 'bg-red-500'
+                  }`}
+                  style={{
+                    width: `${creditProfile.creditTier === 'exceptional' ? 100 :
+                             creditProfile.creditTier === 'excellent' ? ((creditProfile.creditScore - 740) / 60) * 100 :
+                             creditProfile.creditTier === 'good' ? ((creditProfile.creditScore - 670) / 70) * 100 :
+                             creditProfile.creditTier === 'fair' ? ((creditProfile.creditScore - 580) / 90) * 100 :
+                             ((creditProfile.creditScore - 300) / 280) * 100}%`
+                  }}
+                />
               </div>
             </div>
           </motion.div>

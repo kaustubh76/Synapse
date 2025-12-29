@@ -860,14 +860,35 @@ router.post('/bilateral/:sessionId/server-payment', (req: Request, res: Response
 
 /**
  * POST /api/mcp/bilateral/:sessionId/settle
- * Settle a bilateral session
+ * Settle a bilateral session with REAL on-chain USDC payment
  */
 router.post('/bilateral/:sessionId/settle', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const manager = getBilateralSessionManager();
 
-    const result = await manager.settleSession(sessionId);
+    // Get platform wallet from env (with correct checksum)
+    const PLATFORM_WALLET = process.env.SYNAPSE_PLATFORM_WALLET || '0x742d35Cc6634c0532925A3b844BC9e7595F5bE21';
+    const PRIVATE_KEY = process.env.EIGENCLOUD_PRIVATE_KEY;
+
+    // REQUIRE real wallet configuration - no fallback
+    if (!PRIVATE_KEY) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'WALLET_NOT_CONFIGURED',
+          message: 'EIGENCLOUD_PRIVATE_KEY not configured. Real settlements require wallet setup.',
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    // Execute real on-chain settlement
+    const result = await manager.settleSessionWithPayment(
+      sessionId,
+      PRIVATE_KEY,
+      PLATFORM_WALLET
+    );
 
     res.json({
       success: true,
@@ -878,8 +899,11 @@ router.post('/bilateral/:sessionId/settle', async (req: Request, res: Response) 
         fromAddress: result.from,
         toAddress: result.to,
         transactionHash: result.txHash,
+        blockNumber: result.blockNumber,
+        explorerUrl: result.explorerUrl,
         settledAt: result.settledAt,
         totalTransactions: result.transactionCount,
+        isRealTransfer: true,
       },
       timestamp: Date.now(),
     });

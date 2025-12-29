@@ -3,12 +3,23 @@
 // Main entry point for the backend
 // ============================================================
 
+// CRITICAL: Load env vars BEFORE any other imports
+// This ensures modules that read process.env at load time get the values
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+
+// Load .env from project root (monorepo root, not apps/api)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+const envPath = join(__dirname, '..', '..', '..', '.env');
+dotenv.config({ path: envPath });
+
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
-import dotenv from 'dotenv';
 
 import { setupIntentRoutes } from './routes/intents.js';
 import { setupProviderRoutes } from './routes/providers.js';
@@ -26,9 +37,6 @@ import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
 import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine } from '@synapse/core';
 import { seedDemoProviders } from './seed/demo-providers.js';
-
-// Load environment variables
-dotenv.config();
 
 const PORT = process.env.PORT || 3001;
 const ALLOWED_ORIGINS = ['http://localhost:3000', 'http://localhost:3002'];
@@ -179,10 +187,18 @@ async function main() {
   setupEngineEvents(intentEngine, providerRegistry, io);
 
   // Seed demo providers for testing (disable with SKIP_DEMO_PROVIDERS=true)
-  if (!process.env.SKIP_DEMO_PROVIDERS) {
-    seedDemoProviders(providerRegistry);
+  if (process.env.SKIP_DEMO_PROVIDERS === 'true') {
+    console.log('⏭️  Skipping demo provider seeding (SKIP_DEMO_PROVIDERS=true)');
   } else {
-    console.log('Skipping demo provider seeding (SKIP_DEMO_PROVIDERS=true)');
+    seedDemoProviders(providerRegistry);
+  }
+
+  // Wallet configuration warnings
+  if (!process.env.EIGENCLOUD_PRIVATE_KEY) {
+    console.warn('⚠️  EIGENCLOUD_PRIVATE_KEY not set - real USDC payments will fail');
+    console.warn('   Set EIGENCLOUD_PRIVATE_KEY in .env for production mode');
+  } else {
+    console.log('✅ EigenCloud wallet configured for real USDC payments');
   }
 
   // Error handler
