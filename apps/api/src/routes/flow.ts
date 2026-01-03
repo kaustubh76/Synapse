@@ -11,6 +11,7 @@ import {
   getLLMExecutionEngine,
   getMCPToolBridge,
   getRealToolProvider,
+  getAgentCreditScorer,
   type LLMIntentRequest,
   type LLMIntentParams,
   type MCPToolRequest,
@@ -489,12 +490,37 @@ router.post('/:flowId/settle', async (req: Request, res: Response) => {
 
     const bilateralManager = getBilateralSessionManager();
 
-    // Settle bilateral session
-    const settlement = await bilateralManager.settleSession(flowSession.bilateralSessionId);
+    // ALWAYS use platform wallet for settlements (it has ETH for gas + USDC)
+    // Agent wallets are dynamically created without ETH, so they can't pay gas fees
+    const privateKey = EIGENCLOUD_PRIVATE_KEY;
+
+    if (!privateKey) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'NO_PLATFORM_KEY',
+          message: 'EIGENCLOUD_PRIVATE_KEY not configured. Platform wallet is required for settlements.',
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    console.log(`[Flow API] Settling session ${flowSession.bilateralSessionId} using platform wallet`);
+
+    // Settle bilateral session with REAL USDC transfer
+    const settlement = await bilateralManager.settleSessionWithPayment(
+      flowSession.bilateralSessionId,
+      privateKey
+    );
 
     // Update flow session
     flowSession.status = 'settled';
     flowSessions.set(flowId, flowSession);
+
+    // Build explorer URL for the transaction
+    const explorerUrl = settlement.txHash
+      ? `https://sepolia.basescan.org/tx/${settlement.txHash}`
+      : undefined;
 
     res.json({
       success: true,
@@ -507,6 +533,9 @@ router.post('/:flowId/settle', async (req: Request, res: Response) => {
           from: settlement.from,
           to: settlement.to,
           transactionCount: settlement.transactionCount,
+          txHash: settlement.txHash,
+          blockNumber: settlement.blockNumber,
+          explorerUrl,
         },
         totalSpent: flowSession.totalSpent,
         transactions: flowSession.transactions,
@@ -916,6 +945,22 @@ router.post('/:flowId/pay', async (req: Request, res: Response) => {
       resource
     );
 
+    // Record in credit score system with blockchain txHash
+    try {
+      const creditScorer = getAgentCreditScorer();
+      await creditScorer.recordPayment(
+        flowSession.agentId,
+        amount,
+        true, // onTime payment
+        paymentResult.txHash,
+        paymentResult.blockNumber
+      );
+      console.log(`[Flow API] Credit payment recorded with txHash: ${paymentResult.txHash}`);
+    } catch (creditError) {
+      console.warn('[Flow API] Failed to record credit payment:', creditError);
+      // Don't fail the payment if credit recording fails
+    }
+
     // Add transaction to flow session
     const tx: FlowTransaction = {
       id: `tx_${Date.now()}`,
@@ -1035,6 +1080,21 @@ router.post('/:flowId/select-and-pay', async (req: Request, res: Response) => {
       selectionCost,
       `llm.${modelId}`
     );
+
+    // Record in credit score system with blockchain txHash
+    try {
+      const creditScorer = getAgentCreditScorer();
+      await creditScorer.recordPayment(
+        flowSession.agentId,
+        selectionCost,
+        true, // onTime payment
+        paymentResult.txHash,
+        paymentResult.blockNumber
+      );
+      console.log(`[Flow API] Credit payment recorded for select-and-pay: ${paymentResult.txHash}`);
+    } catch (creditError) {
+      console.warn('[Flow API] Failed to record credit payment:', creditError);
+    }
 
     // Add transaction
     const tx: FlowTransaction = {
@@ -1189,6 +1249,22 @@ router.post('/:flowId/tool-and-pay', async (req: Request, res: Response) => {
     const output = await executeRealTool(toolName, toolInput);
 
     console.log(`[Flow API] Tool-and-pay successful! Tx: ${paymentResult.txHash}`);
+
+    // Record in credit score system with blockchain txHash
+    try {
+      const creditScorer = getAgentCreditScorer();
+      await creditScorer.recordPayment(
+        flowSession.agentId,
+        toolCost,
+        true, // onTime payment
+        paymentResult.txHash,
+        paymentResult.blockNumber
+      );
+      console.log(`[Flow API] Tool payment credit recorded with txHash: ${paymentResult.txHash}`);
+    } catch (creditError) {
+      console.warn('[Flow API] Failed to record tool credit payment:', creditError);
+      // Don't fail the request - payment already succeeded
+    }
 
     res.json({
       success: true,

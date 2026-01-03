@@ -3,9 +3,30 @@
 // On-chain Agent Identity Registration and Discovery
 // Based on: https://eips.ethereum.org/EIPS/eip-8004
 // Docs: https://docs.eigencloud.xyz/eigenai/howto/build-trustless-agents
+// NOW WITH REAL ON-CHAIN REPUTATION EVENTS (Base Sepolia)
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
+import { ethers, Contract } from 'ethers';
+
+// SynapseAgentRegistry contract ABI (minimal interface for interactions)
+const REGISTRY_ABI = [
+  // Read functions
+  "function owner() view returns (address)",
+  "function getAgent(bytes32 agentId) view returns (tuple(string name, string agentJsonUrl, address walletAddress, uint256 reputation, uint256 totalFeedback, uint256 positiveFeedback, uint256 registeredAt, uint256 lastUpdated, bool isActive))",
+  "function getAgentByWallet(address wallet) view returns (tuple(string name, string agentJsonUrl, address walletAddress, uint256 reputation, uint256 totalFeedback, uint256 positiveFeedback, uint256 registeredAt, uint256 lastUpdated, bool isActive))",
+  "function getAgentId(address wallet) view returns (bytes32)",
+  "function getTotalAgents() view returns (uint256)",
+  "function getReputation(bytes32 agentId) view returns (uint256)",
+  "function isAgentActive(bytes32 agentId) view returns (bool)",
+  // Write functions
+  "function registerAgent(string name, string agentJsonUrl, address walletAddress) returns (bytes32 agentId)",
+  "function updateAgent(bytes32 agentId, string name, string agentJsonUrl)",
+  "function submitFeedback(bytes32 agentId, uint8 rating, bool success)",
+  // Events
+  "event AgentRegistered(bytes32 indexed agentId, string name, address indexed walletAddress, string agentJsonUrl, uint256 timestamp)",
+  "event ReputationUpdated(bytes32 indexed agentId, uint256 oldScore, uint256 newScore, uint256 totalFeedback, uint256 timestamp)"
+];
 
 export interface RegistryConfig {
   rpcUrl: string;
@@ -13,6 +34,24 @@ export interface RegistryConfig {
   chainId: number;
   privateKey?: string;
   demoMode?: boolean;
+  /** Enable on-chain reputation event submission (transaction data) */
+  enableOnChainReputation?: boolean;
+}
+
+/** On-chain reputation event record */
+export interface OnChainReputationEvent {
+  txHash: string;
+  blockNumber?: number;
+  explorerUrl?: string;
+  agentId: string;
+  oldScore: number;
+  newScore: number;
+  feedback: {
+    rating: number;
+    success: boolean;
+    taskId?: string;
+  };
+  timestamp: number;
 }
 
 export interface OnChainAgentProfile {
@@ -93,6 +132,7 @@ interface ERC8004Events {
   'agent:updated': (profile: OnChainAgentProfile) => void;
   'agent:deregistered': (agentId: string) => void;
   'reputation:updated': (agentId: string, oldScore: number, newScore: number) => void;
+  'reputation:onchain': (event: OnChainReputationEvent) => void;
   'validation:submitted': (response: ValidationResponse) => void;
 }
 
@@ -120,13 +160,71 @@ export class ERC8004RegistryClient extends EventEmitter<ERC8004Events> {
   private agentsByCapability: Map<string, Set<string>> = new Map();
   private reputations: Map<string, ReputationData> = new Map();
   private validations: Map<string, ValidationResponse[]> = new Map();
+  private onChainReputationEvents: OnChainReputationEvent[] = [];
+  private provider: ethers.JsonRpcProvider | null = null;
+  private wallet: ethers.Wallet | null = null;
+  private contract: Contract | null = null;
 
   constructor(config: RegistryConfig) {
     super();
     this.config = {
       demoMode: true,
+      enableOnChainReputation: process.env.ENABLE_ONCHAIN_REPUTATION !== 'false',
       ...config
     };
+
+    // Initialize ethers provider and wallet for on-chain operations
+    if (this.config.privateKey) {
+      this.initializeBlockchainConnection();
+    }
+  }
+
+  /**
+   * Initialize blockchain connection for on-chain reputation events
+   */
+  private initializeBlockchainConnection(): void {
+    try {
+      this.provider = new ethers.JsonRpcProvider(this.config.rpcUrl);
+      if (this.config.privateKey) {
+        this.wallet = new ethers.Wallet(this.config.privateKey, this.provider);
+        console.log('[ERC8004Registry] Blockchain connection initialized');
+        console.log(`[ERC8004Registry]   Wallet: ${this.wallet.address}`);
+        console.log(`[ERC8004Registry]   Network: ${this.config.rpcUrl}`);
+
+        // Initialize contract instance if address is a valid deployed contract
+        if (this.config.registryAddress && !this.config.registryAddress.includes('8004')) {
+          this.contract = new Contract(
+            this.config.registryAddress,
+            REGISTRY_ABI,
+            this.wallet
+          );
+          console.log(`[ERC8004Registry]   Contract: ${this.config.registryAddress}`);
+        }
+
+        if (this.config.enableOnChainReputation) {
+          console.log('[ERC8004Registry] On-chain reputation events ENABLED');
+        }
+      }
+    } catch (error) {
+      console.warn('[ERC8004Registry] Failed to initialize blockchain connection:', error);
+      this.provider = null;
+      this.wallet = null;
+      this.contract = null;
+    }
+  }
+
+  /**
+   * Check if smart contract is available
+   */
+  hasContract(): boolean {
+    return this.contract !== null;
+  }
+
+  /**
+   * Get the contract address
+   */
+  getContractAddress(): string | null {
+    return this.contract ? this.config.registryAddress : null;
   }
 
   // ============================================================
@@ -135,14 +233,19 @@ export class ERC8004RegistryClient extends EventEmitter<ERC8004Events> {
 
   /**
    * Register a new agent on-chain
-   * In production, this creates an on-chain transaction to the Identity Registry
+   * Uses smart contract when deployed, falls back to mock for demo mode
    */
   async registerAgent(registration: AgentRegistration): Promise<OnChainAgentProfile> {
+    // Use smart contract if available and not in demo mode
+    if (this.contract && !this.config.demoMode) {
+      return this.registerAgentOnChain(registration);
+    }
+
     if (this.config.demoMode) {
       return this.mockRegisterAgent(registration);
     }
 
-    // Production: Submit transaction to ERC-8004 Identity Registry
+    // Fallback to HTTP API (legacy)
     const response = await fetch(`${this.config.rpcUrl}/erc8004/register`, {
       method: 'POST',
       headers: {
@@ -162,6 +265,74 @@ export class ERC8004RegistryClient extends EventEmitter<ERC8004Events> {
     const profile: OnChainAgentProfile = await response.json();
     this.cacheAgent(profile);
     this.emit('agent:registered', profile);
+    return profile;
+  }
+
+  /**
+   * Register agent directly on smart contract
+   */
+  private async registerAgentOnChain(registration: AgentRegistration): Promise<OnChainAgentProfile> {
+    if (!this.contract || !this.wallet) {
+      throw new Error('Contract not initialized');
+    }
+
+    console.log('[ERC8004Registry] Registering agent on-chain...');
+    console.log(`[ERC8004Registry]   Name: ${registration.name}`);
+    console.log(`[ERC8004Registry]   Wallet: ${registration.walletAddress}`);
+
+    // Call contract to register agent
+    const tx = await this.contract.registerAgent(
+      registration.name,
+      registration.agentJsonUrl,
+      registration.walletAddress
+    );
+
+    console.log(`[ERC8004Registry] TX submitted: ${tx.hash}`);
+
+    // Wait for confirmation
+    const receipt = await tx.wait();
+    console.log(`[ERC8004Registry] TX confirmed in block ${receipt.blockNumber}`);
+
+    // Parse events to get agent ID
+    const iface = this.contract.interface;
+    const agentRegisteredEvent = receipt.logs
+      .map((log: any) => {
+        try {
+          return iface.parseLog(log);
+        } catch {
+          return null;
+        }
+      })
+      .find((parsed: any) => parsed?.name === 'AgentRegistered');
+
+    const agentId = agentRegisteredEvent?.args?.agentId || `0x${Date.now().toString(16)}`;
+    const now = Date.now();
+
+    const profile: OnChainAgentProfile = {
+      agentId: agentId.toString(),
+      owner: registration.walletAddress,
+      walletAddress: registration.walletAddress,
+      name: registration.name,
+      description: registration.description,
+      version: registration.version,
+      capabilities: registration.capabilities,
+      skills: registration.skills,
+      agentJsonUrl: registration.agentJsonUrl,
+      mcpEndpoint: registration.mcpEndpoint,
+      apiEndpoint: registration.apiEndpoint,
+      trustModels: registration.trustModels || [{ type: 'reputation', config: {} }],
+      registeredAt: now,
+      lastUpdated: now,
+      isActive: true
+    };
+
+    this.cacheAgent(profile);
+    this.emit('agent:registered', profile);
+
+    console.log(`[ERC8004Registry] ✅ Agent registered on-chain!`);
+    console.log(`[ERC8004Registry]   Agent ID: ${agentId}`);
+    console.log(`[ERC8004Registry]   Explorer: https://sepolia.basescan.org/tx/${tx.hash}`);
+
     return profile;
   }
 
@@ -571,6 +742,7 @@ export class ERC8004RegistryClient extends EventEmitter<ERC8004Events> {
 
   private mockSubmitFeedback(feedback: {
     agentId: string;
+    taskId?: string;
     rating: number;
     success: boolean;
   }): void {
@@ -594,7 +766,120 @@ export class ERC8004RegistryClient extends EventEmitter<ERC8004Events> {
 
     if (Math.abs(rep.score - oldScore) > 1) {
       this.emit('reputation:updated', feedback.agentId, oldScore, rep.score);
+
+      // Submit on-chain reputation event if enabled
+      if (this.config.enableOnChainReputation && this.wallet) {
+        this.submitReputationOnChain(feedback.agentId, oldScore, rep.score, {
+          rating: feedback.rating,
+          success: feedback.success,
+          taskId: feedback.taskId
+        }).catch(err => {
+          console.error('[ERC8004Registry] On-chain reputation submission failed:', err);
+        });
+      }
     }
+  }
+
+  /**
+   * Submit reputation update as on-chain transaction data
+   * This records the reputation change on the blockchain for transparency
+   */
+  private async submitReputationOnChain(
+    agentId: string,
+    oldScore: number,
+    newScore: number,
+    feedback: { rating: number; success: boolean; taskId?: string }
+  ): Promise<OnChainReputationEvent | null> {
+    if (!this.wallet || !this.provider) {
+      console.warn('[ERC8004Registry] No wallet configured for on-chain reputation');
+      return null;
+    }
+
+    try {
+      console.log('[ERC8004Registry] Submitting reputation event on-chain...');
+      console.log(`[ERC8004Registry]   Agent: ${agentId}`);
+      console.log(`[ERC8004Registry]   Score: ${oldScore} → ${newScore}`);
+
+      // Encode reputation data as transaction data
+      const reputationData = {
+        type: 'SYNAPSE_REPUTATION_UPDATE',
+        version: '1.0',
+        timestamp: Date.now(),
+        agentId,
+        oldScore,
+        newScore,
+        feedback,
+        registry: this.config.registryAddress
+      };
+
+      // Convert to hex-encoded JSON for transaction data field
+      const dataHex = '0x' + Buffer.from(JSON.stringify(reputationData)).toString('hex');
+
+      // Send minimal ETH transaction to registry address with data
+      const tx = await this.wallet.sendTransaction({
+        to: this.config.registryAddress,
+        value: 0n, // Zero value - we're just recording data
+        data: dataHex,
+        // Use minimal gas for data-only transaction
+        gasLimit: 50000n
+      });
+
+      console.log(`[ERC8004Registry] Reputation TX submitted: ${tx.hash}`);
+
+      // Wait for confirmation (with timeout)
+      const receipt = await Promise.race([
+        tx.wait(),
+        new Promise<null>((_, reject) =>
+          setTimeout(() => reject(new Error('TX confirmation timeout')), 30000)
+        )
+      ]);
+
+      const explorerUrl = `https://sepolia.basescan.org/tx/${tx.hash}`;
+
+      const event: OnChainReputationEvent = {
+        txHash: tx.hash,
+        blockNumber: receipt?.blockNumber,
+        explorerUrl,
+        agentId,
+        oldScore,
+        newScore,
+        feedback,
+        timestamp: Date.now()
+      };
+
+      this.onChainReputationEvents.push(event);
+      this.emit('reputation:onchain', event);
+
+      console.log(`[ERC8004Registry] ✅ Reputation recorded on-chain!`);
+      console.log(`[ERC8004Registry]   Block: ${receipt?.blockNumber}`);
+      console.log(`[ERC8004Registry]   Explorer: ${explorerUrl}`);
+
+      return event;
+    } catch (error) {
+      console.error('[ERC8004Registry] ❌ On-chain reputation failed:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get all on-chain reputation events
+   */
+  getOnChainReputationEvents(): OnChainReputationEvent[] {
+    return [...this.onChainReputationEvents];
+  }
+
+  /**
+   * Get on-chain reputation events for a specific agent
+   */
+  getAgentOnChainEvents(agentId: string): OnChainReputationEvent[] {
+    return this.onChainReputationEvents.filter(e => e.agentId === agentId);
+  }
+
+  /**
+   * Check if on-chain reputation is enabled
+   */
+  isOnChainReputationEnabled(): boolean {
+    return this.config.enableOnChainReputation === true && this.wallet !== null;
   }
 
   /**
@@ -619,7 +904,9 @@ export function getERC8004RegistryClient(config?: RegistryConfig): ERC8004Regist
         rpcUrl: process.env.ERC8004_RPC_URL || process.env.BASE_RPC_URL || 'https://sepolia.base.org',
         registryAddress: process.env.ERC8004_REGISTRY_ADDRESS || '0x0000000000000000000000000000000000008004',
         chainId: parseInt(process.env.ERC8004_CHAIN_ID || '84532'),
-        demoMode: process.env.ERC8004_DEMO_MODE !== 'false'
+        demoMode: process.env.ERC8004_DEMO_MODE !== 'false',
+        privateKey: process.env.ERC8004_PRIVATE_KEY || process.env.EIGENCLOUD_PRIVATE_KEY,
+        enableOnChainReputation: process.env.ENABLE_ONCHAIN_REPUTATION !== 'false'
       };
     }
     registryClientInstance = new ERC8004RegistryClient(config);

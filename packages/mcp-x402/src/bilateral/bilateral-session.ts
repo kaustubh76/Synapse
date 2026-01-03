@@ -304,6 +304,13 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
   }
 
   /**
+   * Get all sessions
+   */
+  getAllSessions(): BilateralSession[] {
+    return Array.from(this.sessions.values());
+  }
+
+  /**
    * Get session balance summary
    */
   getSessionBalance(sessionId: string): {
@@ -396,12 +403,16 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
 
   /**
    * Settle session with REAL on-chain USDC payment
-   * All settlements go to the platform wallet
+   * Transfers from the party that owes to the party that is owed
+   *
+   * NOTE: The privateKey provided must belong to the party that OWES money.
+   * - If netBalance > 0: server owes client, so privateKey should be server's key
+   * - If netBalance < 0: client owes server, so privateKey should be client's key
    */
   async settleSessionWithPayment(
     sessionId: string,
     privateKey: string,
-    platformWallet: string
+    _platformWallet?: string  // Kept for backwards compat but not used for direct transfers
   ): Promise<SettlementResult> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -424,19 +435,38 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     session.status = 'settling';
     this.emit('session:settling', session);
 
-    // Determine direction for accounting purposes
-    const direction: 'client-to-server' | 'server-to-client' | 'none' =
-      session.netBalance > 0 ? 'server-to-client' :
-      session.netBalance < 0 ? 'client-to-server' : 'none';
+    // Determine direction and parties for the transfer
+    let direction: 'client-to-server' | 'server-to-client' | 'none' = 'none';
+    let fromAddress: string;
+    let toAddress: string;
 
-    // Execute REAL USDC transfer to platform wallet
-    console.log(`[Bilateral] Executing real USDC settlement: $${netAmount} to ${platformWallet}`);
+    if (session.netBalance > 0) {
+      // Server owes client (server paid more, so server needs to transfer to client)
+      direction = 'server-to-client';
+      fromAddress = session.serverAddress;
+      toAddress = session.clientAddress;
+    } else if (session.netBalance < 0) {
+      // Client owes server (client paid more, so client needs to transfer to server)
+      direction = 'client-to-server';
+      fromAddress = session.clientAddress;
+      toAddress = session.serverAddress;
+    } else {
+      // No transfer needed
+      return this.settleSession(sessionId);
+    }
+
+    // Execute REAL USDC transfer from payer to payee
+    console.log(`[Bilateral] Executing real USDC settlement:`);
+    console.log(`[Bilateral]   Direction: ${direction}`);
+    console.log(`[Bilateral]   Amount: $${netAmount} USDC`);
+    console.log(`[Bilateral]   From: ${fromAddress}`);
+    console.log(`[Bilateral]   To: ${toAddress}`);
 
     const usdcTransfer = getUSDCTransfer();
     const transferResult = await usdcTransfer.transferWithPrivateKey(privateKey, {
-      recipient: platformWallet,
+      recipient: toAddress,
       amount: netAmount,
-      reason: `Bilateral settlement: ${sessionId}`,
+      reason: `Bilateral settlement: ${sessionId} (${direction})`,
     });
 
     if (!transferResult.success || !transferResult.txHash) {
@@ -456,8 +486,8 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
       sessionId,
       netAmount,
       direction,
-      from: session.clientAddress,
-      to: platformWallet,
+      from: fromAddress,
+      to: toAddress,
       txHash: transferResult.txHash,
       blockNumber: transferResult.blockNumber,
       explorerUrl: transferResult.explorerUrl,
@@ -471,6 +501,8 @@ export class BilateralSessionManager extends EventEmitter<BilateralSessionEvents
     console.log(`[Bilateral]   TX: ${transferResult.txHash}`);
     console.log(`[Bilateral]   Block: ${transferResult.blockNumber}`);
     console.log(`[Bilateral]   Amount: $${netAmount} USDC`);
+    console.log(`[Bilateral]   From: ${fromAddress}`);
+    console.log(`[Bilateral]   To: ${toAddress}`);
     console.log(`[Bilateral]   Explorer: ${transferResult.explorerUrl}`);
 
     return result;

@@ -1,0 +1,559 @@
+{
+  "version": "1.0",
+  "lastSaved": 1767450550864,
+  "sessions": {
+    "bilateral_XF-Q02r4_zj6ro67": {
+      "sessionId": "bilateral_XF-Q02r4_zj6ro67",
+      "clientId": "mcp_LH9wB14k_YmC",
+      "clientAddress": "0x56da6aE23CA07d7564bb17a005DeFa6a6C18a708",
+      "serverId": "mcp_f-1apQQORk6m",
+      "serverAddress": "0x31cA9635fba5B650995a92D3A851C7eb8E33d739",
+      "transactions": [
+        {
+          "id": "tx_u-niRR0lI6y7",
+          "payer": "server",
+          "payee": "client",
+          "amount": 0.0001,
+          "resource": "data.provided",
+          "timestamp": 1767020562172,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0.0001,
+      "netBalance": 0.0001,
+      "createdAt": 1767020555743,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_KH0a0a41eRkrbuC_": {
+      "sessionId": "bilateral_KH0a0a41eRkrbuC_",
+      "clientId": "mcp_TNv4WKF7UkFy",
+      "clientAddress": "0xA665E6ff9773Ea578cd73E90080673d64bB244c0",
+      "serverId": "mcp_B0a075CVRbPv",
+      "serverAddress": "0x1E9C156CcE5490b0eB8e2C58E075d79Cf8D0698F",
+      "transactions": [
+        {
+          "id": "tx_FIN6BcokYPaW",
+          "payer": "server",
+          "payee": "client",
+          "amount": 0.0001,
+          "resource": "data.provided",
+          "timestamp": 1767020782984,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0.0001,
+      "netBalance": 0.0001,
+      "createdAt": 1767020761093,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_U4N1-OqFjDY6NQ5d": {
+      "sessionId": "bilateral_U4N1-OqFjDY6NQ5d",
+      "clientId": "mcp_str5_ABc4Ctx",
+      "clientAddress": "0xb931926073DEe887d61ACA754E4FEb7B0FF7634a",
+      "serverId": "mcp_wb1aqGYxFXgR",
+      "serverAddress": "0xC1309AA38791Ff05Dade3acC24f88A8eAd43717d",
+      "transactions": [],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0,
+      "netBalance": 0,
+      "createdAt": 1767022065022,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_QefXs2hObXf0Zytj": {
+      "sessionId": "bilateral_QefXs2hObXf0Zytj",
+      "clientId": "mcp_str5_ABc4Ctx",
+      "clientAddress": "0xb931926073DEe887d61ACA754E4FEb7B0FF7634a",
+      "serverId": "mcp_wb1aqGYxFXgR",
+      "serverAddress": "0xC1309AA38791Ff05Dade3acC24f88A8eAd43717d",
+      "transactions": [
+        {
+          "id": "tx_9hnxZ6483bmz",
+          "payer": "server",
+          "payee": "client",
+          "amount": 0.005,
+          "resource": "data.provided",
+          "timestamp": 1767023463102,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0.005,
+      "netBalance": 0.005,
+      "createdAt": 1767023441102,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_qOwPp4I6kspwBezk": {
+      "sessionId": "bilateral_qOwPp4I6kspwBezk",
+      "clientId": "mcp_j0Qz9VemrSNk",
+      "clientAddress": "0x8A31708Ac54eD116EB7E4eae7B9Bf459BBa704Ea",
+      "serverId": "mcp_yA1Tvi53WjQ2",
+      "serverAddress": "0xF3f0AdF67B989Ff8CDBf91D8C43f322fDd017324",
+      "transactions": [
+        {
+          "id": "tx_GICOIRRex6bE",
+          "payer": "server",
+          "payee": "client",
+          "amount": 0.001,
+          "resource": "data.provided",
+          "timestamp": 1767023859091,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0.001,
+      "netBalance": 0.001,
+      "createdAt": 1767023852549,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_p4BFcP_Rc9kNl3dy": {
+      "sessionId": "bilateral_p4BFcP_Rc9kNl3dy",
+      "clientId": "mcp_j0Qz9VemrSNk",
+      "clientAddress": "0x8A31708Ac54eD116EB7E4eae7B9Bf459BBa704Ea",
+      "serverId": "mcp_yA1Tvi53WjQ2",
+      "serverAddress": "0xF3f0AdF67B989Ff8CDBf91D8C43f322fDd017324",
+      "transactions": [
+        {
+          "id": "tx_3C4o9QhyAvxN",
+          "payer": "server",
+          "payee": "client",
+          "amount": 0.005,
+          "resource": "data.provided",
+          "timestamp": 1767025561525,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0.005,
+      "netBalance": 0.005,
+      "createdAt": 1767025556123,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_X-lKW5i6xMGbhTnO": {
+      "sessionId": "bilateral_X-lKW5i6xMGbhTnO",
+      "clientId": "mcp_j0Qz9VemrSNk",
+      "clientAddress": "0x8A31708Ac54eD116EB7E4eae7B9Bf459BBa704Ea",
+      "serverId": "mcp_yA1Tvi53WjQ2",
+      "serverAddress": "0xF3f0AdF67B989Ff8CDBf91D8C43f322fDd017324",
+      "transactions": [
+        {
+          "id": "tx_mU0q0sfIQiO-",
+          "payer": "server",
+          "payee": "client",
+          "amount": 0.001,
+          "resource": "data.provided",
+          "timestamp": 1767028052598,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0.001,
+      "netBalance": 0.001,
+      "createdAt": 1767028040406,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_K6FbYLIiX8OtgSN5": {
+      "sessionId": "bilateral_K6FbYLIiX8OtgSN5",
+      "clientId": "mcp_oIPFV-AxJR1K",
+      "clientAddress": "0x66D7582D4DDDE03238787819237dbe08c9947Ceb",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x98280dc6fEF54De5DF58308a7c62e3003eA7F455",
+      "transactions": [],
+      "clientPaidTotal": 0,
+      "serverPaidTotal": 0,
+      "netBalance": 0,
+      "createdAt": 1767039977929,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_ea6clLtPWjWrsoY3": {
+      "sessionId": "bilateral_ea6clLtPWjWrsoY3",
+      "clientId": "mcp_k3ED2ekXEyHa",
+      "clientAddress": "0x4245140476B03A2c1040Aa077c78Dc806504fB39",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x98280dc6fEF54De5DF58308a7c62e3003eA7F455",
+      "transactions": [
+        {
+          "id": "tx_MTrxeIwSV1gT",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.llama-3.1-8b-instant",
+          "timestamp": 1767040733619,
+          "status": "recorded"
+        },
+        {
+          "id": "tx_IeIgK4ZA6Sqm",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.001,
+          "resource": "crypto.price",
+          "timestamp": 1767040741508,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.006,
+      "serverPaidTotal": 0,
+      "netBalance": -0.006,
+      "createdAt": 1767040682813,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_YKE6vkpfLm3aXMZU": {
+      "sessionId": "bilateral_YKE6vkpfLm3aXMZU",
+      "clientId": "flow-agent-1767040728922",
+      "clientAddress": "0x9AEF45961089202D33AC28A7623e890d775dd2E9",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_DRbbx7lq5dQM",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "timestamp": 1767040733575,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767040728998,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_cJqhMvlW5040n0Eq": {
+      "sessionId": "bilateral_cJqhMvlW5040n0Eq",
+      "clientId": "flow-agent-1767040735902",
+      "clientAddress": "0x8B99292a70B013468C29D6408141379FBb9cB0a5",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_EJHXX9cxwo65",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.001,
+          "timestamp": 1767040741497,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.001,
+      "serverPaidTotal": 0,
+      "netBalance": -0.001,
+      "createdAt": 1767040735912,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_rYIXpEkJDRcwB_kV": {
+      "sessionId": "bilateral_rYIXpEkJDRcwB_kV",
+      "clientId": "mcp_5Pa1mHkhnVCL",
+      "clientAddress": "0xC2Eb2aFb49a6947636Fb5Be139575FFB5875F8Dc",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x98280dc6fEF54De5DF58308a7c62e3003eA7F455",
+      "transactions": [
+        {
+          "id": "tx_0DVxI5QmmVIo",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.gemini-2.5-flash",
+          "timestamp": 1767041593320,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767041526793,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_-_d7cuTDpOLZa1px": {
+      "sessionId": "bilateral_-_d7cuTDpOLZa1px",
+      "clientId": "flow-agent-1767041583682",
+      "clientAddress": "0xCC34465fABf39Ef68f62C31FEc716B776A91CDe6",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_D3HGGuWy2Fhy",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "timestamp": 1767041593277,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767041583695,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_dFohqGHAxx7PMKbe": {
+      "sessionId": "bilateral_dFohqGHAxx7PMKbe",
+      "clientId": "mcp_-PSywektNcXL",
+      "clientAddress": "0x20A16E81FA6dfC81bD99b686748F0258126d0bC9",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x98280dc6fEF54De5DF58308a7c62e3003eA7F455",
+      "transactions": [
+        {
+          "id": "tx_gk-1SyrCwqBI",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.gemini-2.5-flash",
+          "timestamp": 1767043106233,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767043033093,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_22964WkwnJDxpto7": {
+      "sessionId": "bilateral_22964WkwnJDxpto7",
+      "clientId": "flow-agent-1767043101926",
+      "clientAddress": "0xFA247Fd381efa2Abcccd1aBed2FC3F234f2aCcE5",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_MCLwInTSjWCN",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "timestamp": 1767043106204,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767043101952,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_6-i3TcsMGJsOAvFo": {
+      "sessionId": "bilateral_6-i3TcsMGJsOAvFo",
+      "clientId": "mcp_8oSoOR1ZslXx",
+      "clientAddress": "0xd8764603e1FFA5faD0BEe7fDd89eca2Ec8fEF5a5",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x98280dc6fEF54De5DF58308a7c62e3003eA7F455",
+      "transactions": [
+        {
+          "id": "tx_ae0bhoVT6DKH",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.llama-3.1-8b-instant",
+          "timestamp": 1767044075770,
+          "status": "settled"
+        },
+        {
+          "id": "tx_bTIRJm-ioEGZ",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.001,
+          "resource": "crypto.price",
+          "timestamp": 1767044080305,
+          "status": "settled"
+        }
+      ],
+      "clientPaidTotal": 0.006,
+      "serverPaidTotal": 0,
+      "netBalance": -0.006,
+      "createdAt": 1767044044148,
+      "status": "settled",
+      "network": "base-sepolia"
+    },
+    "bilateral_Fhw2VZHHpx2bCb8L": {
+      "sessionId": "bilateral_Fhw2VZHHpx2bCb8L",
+      "clientId": "flow-agent-1767044071049",
+      "clientAddress": "0x5832f1bf78b6D54ab8382a3aF4d5F688370Cad47",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_zKxZNgIEFy_l",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "timestamp": 1767044075762,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767044071077,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_yDh4s-IPuG0TSke0": {
+      "sessionId": "bilateral_yDh4s-IPuG0TSke0",
+      "clientId": "flow-agent-1767044076472",
+      "clientAddress": "0x554996B29d58E7Bd02677D1337708Ad168D84ff8",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_yiharIbfytR_",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.001,
+          "timestamp": 1767044080297,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.001,
+      "serverPaidTotal": 0,
+      "netBalance": -0.001,
+      "createdAt": 1767044076483,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_Ork-ZxPkNzt3aR1A": {
+      "sessionId": "bilateral_Ork-ZxPkNzt3aR1A",
+      "clientId": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+      "clientAddress": "0x71ccc1dA9FBC493213B9a759DE33A8E2b4A4752f",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_UGYnVX8qBhzk",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.selection",
+          "timestamp": 1767044279088,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767044275147,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_vBJy4GhnjbE4EoSb": {
+      "sessionId": "bilateral_vBJy4GhnjbE4EoSb",
+      "clientId": "0x2fbCeD454E0B6404Bb172423EdA4aef8EFedFe73",
+      "clientAddress": "0x51ecAdaCC2B0fde1EF4ac413380306814E0e9c3f",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_vQ33TOkzZ2vG",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.001,
+          "resource": "llm.test-model",
+          "timestamp": 1767084014780,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.001,
+      "serverPaidTotal": 0,
+      "netBalance": -0.001,
+      "createdAt": 1767083907837,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_xijOAKWi5MUtdYE9": {
+      "sessionId": "bilateral_xijOAKWi5MUtdYE9",
+      "clientId": "0x5d40d83BA5eF101A1e6c9844AE92C435617EE2fC",
+      "clientAddress": "0xD465f290c01CDfde3F5EFe6C2027B174e24714a4",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_EjgLJqyWcePb",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.0005,
+          "resource": "llm.groq-mixtral",
+          "timestamp": 1767084461300,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.0005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.0005,
+      "createdAt": 1767084371455,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_0yF-U406G_NIG4l-": {
+      "sessionId": "bilateral_0yF-U406G_NIG4l-",
+      "clientId": "real_test_agent",
+      "clientAddress": "0xD5aF3dAfb8D69eB282c65C2D0fb6f7FBFF7cCE14",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_BxJe-jG35Vc2",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.llama-3.3-70b-versatile",
+          "timestamp": 1767450240925,
+          "status": "recorded"
+        },
+        {
+          "id": "tx_V_rSmFZJ52OZ",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.001,
+          "resource": "crypto.price",
+          "timestamp": 1767450283753,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.006,
+      "serverPaidTotal": 0,
+      "netBalance": -0.006,
+      "createdAt": 1767396925560,
+      "status": "active",
+      "network": "base-sepolia"
+    },
+    "bilateral_ef5P0PZfTG31wg42": {
+      "sessionId": "bilateral_ef5P0PZfTG31wg42",
+      "clientId": "real_test_002",
+      "clientAddress": "0x743d554a9a1F48075e7ABA91bdeb893ABcC37Eff",
+      "serverId": "synapse-platform",
+      "serverAddress": "0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21",
+      "transactions": [
+        {
+          "id": "tx_x4np9BJxJ7HW",
+          "payer": "client",
+          "payee": "server",
+          "amount": 0.005,
+          "resource": "llm.llama-3.3-70b-versatile",
+          "timestamp": 1767450531313,
+          "status": "recorded"
+        }
+      ],
+      "clientPaidTotal": 0.005,
+      "serverPaidTotal": 0,
+      "netBalance": -0.005,
+      "createdAt": 1767450467566,
+      "status": "active",
+      "network": "base-sepolia"
+    }
+  }
+}

@@ -203,5 +203,13 @@ export * from './mcp/index.js';
 // Real Tool Providers (Weather, Crypto, News APIs)
 export * from './tools/index.js';
 
+// Configuration Validation
+export {
+  validatePaymentConfig,
+  validateLLMConfig,
+  validateAllConfig,
+  type ValidationResult
+} from './config/validate-env.js';
+
 // Re-export all types for convenience
 export * from '@synapse/types';

@@ -2,17 +2,21 @@
 // SYNAPSE Dispute Resolution System
 // Automated dispute handling with evidence collection
 // NOW WITH REAL ORACLE INTEGRATION (CoinGecko, Open-Meteo)
+// AND REAL USDC SLASHING (on-chain transfers)
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
 import { nanoid } from 'nanoid';
 import { getRealToolProvider } from './tools/real-tool-providers.js';
+import { getEscrowManager, EscrowManager } from './escrow-manager.js';
 
 // -------------------- DISPUTE CONFIGURATION --------------------
 
 export interface DisputeResolverConfig {
   /** Use real oracles (CoinGecko, Open-Meteo) instead of hardcoded values */
   enableRealOracles?: boolean;
+  /** Enable real USDC slashing on-chain when disputes resolve against provider */
+  enableRealSlashing?: boolean;
   /** Evidence collection timeout in ms */
   evidenceTimeoutMs?: number;
   /** Deviation threshold for provider fault (default: 5%) */
@@ -23,6 +27,8 @@ export interface DisputeResolverConfig {
   minReputationPenalty?: number;
   /** Maximum reputation penalty */
   maxReputationPenalty?: number;
+  /** Platform wallet address to receive slashed funds */
+  platformWalletAddress?: string;
 }
 
 export enum DisputeStatus {
@@ -73,6 +79,15 @@ export interface Dispute {
     reputationPenalty: number;
     explanation: string;
   };
+  /** On-chain slashing transaction details (when enableRealSlashing=true) */
+  slashingTx?: {
+    txHash: string;
+    blockNumber?: number;
+    explorerUrl?: string;
+    slashedAmountUSDC: number;
+    recipient: string;
+    executedAt: number;
+  };
   deviationPercent?: number;
   referenceValue?: any;
   providedValue?: any;
@@ -116,24 +131,40 @@ export class DisputeResolver extends EventEmitter<DisputeResolverEvents> {
   private disputesByIntent: Map<string, string> = new Map();
   private referenceOracles: Map<string, ReferenceOracle> = new Map();
   private config: Required<DisputeResolverConfig>;
+  private escrowManager: EscrowManager;
 
   constructor(config: DisputeResolverConfig = {}) {
     super();
+    // Default to REAL oracles and slashing unless explicitly disabled
     this.config = {
-      enableRealOracles: config.enableRealOracles ?? (process.env.ENABLE_REAL_ORACLES === 'true'),
+      enableRealOracles: config.enableRealOracles ?? (process.env.ENABLE_REAL_ORACLES !== 'false'),
+      enableRealSlashing: config.enableRealSlashing ?? (process.env.ENABLE_REAL_SLASHING !== 'false'),
       evidenceTimeoutMs: config.evidenceTimeoutMs ?? 300000,    // 5 minutes
       deviationThreshold: config.deviationThreshold ?? 0.05,    // 5%
       slashPercentage: config.slashPercentage ?? 0.1,           // 10%
       minReputationPenalty: config.minReputationPenalty ?? 0.1,
       maxReputationPenalty: config.maxReputationPenalty ?? 0.5,
+      platformWalletAddress: config.platformWalletAddress ?? process.env.PLATFORM_WALLET ?? '',
     };
+
+    // Initialize escrow manager for slashing operations
+    this.escrowManager = getEscrowManager();
 
     if (this.config.enableRealOracles) {
       console.log('[DisputeResolver] REAL oracles ENABLED (CoinGecko, Open-Meteo)');
       this.registerRealOracles();
     } else {
-      console.log('[DisputeResolver] Using simulated oracles');
+      console.log('[DisputeResolver] Simulated oracles enabled (ENABLE_REAL_ORACLES=false)');
       this.registerDefaultOracles();
+    }
+
+    if (this.config.enableRealSlashing) {
+      console.log('[DisputeResolver] REAL USDC slashing ENABLED (on-chain transfers)');
+      if (!this.config.platformWalletAddress) {
+        console.warn('[DisputeResolver] ⚠️  PLATFORM_WALLET not set - slashed funds will go to escrow wallet');
+      }
+    } else {
+      console.log('[DisputeResolver] Simulated slashing enabled (ENABLE_REAL_SLASHING=false)');
     }
   }
 
@@ -456,6 +487,11 @@ export class DisputeResolver extends EventEmitter<DisputeResolverEvents> {
         reputationPenalty,
         explanation: `Provider data deviated ${(deviation * 100).toFixed(1)}% from reference (threshold: ${this.config.deviationThreshold * 100}%)`
       };
+
+      // Execute real on-chain slashing if enabled
+      if (this.config.enableRealSlashing) {
+        await this.executeSlashing(dispute, slashAmount);
+      }
     } else {
       // Provider correct - within tolerance
       dispute.status = DisputeStatus.RESOLVED_PROVIDER_WINS;
@@ -472,6 +508,65 @@ export class DisputeResolver extends EventEmitter<DisputeResolverEvents> {
     dispute.resolvedAt = Date.now();
     this.disputes.set(disputeId, dispute);
     this.emit('dispute:resolved', dispute);
+  }
+
+  /**
+   * Execute real USDC slashing on-chain
+   * Called when a dispute resolves in favor of the client
+   */
+  private async executeSlashing(dispute: Dispute, slashPercentage: number): Promise<void> {
+    try {
+      const escrow = this.escrowManager.getEscrow(dispute.escrowId);
+      if (!escrow) {
+        console.warn(`[DisputeResolver] Escrow ${dispute.escrowId} not found - skipping slashing`);
+        return;
+      }
+
+      // Calculate actual USDC amount to slash
+      const slashAmountUSDC = escrow.amount * slashPercentage;
+
+      // Determine recipient (platform wallet or fallback to client)
+      const recipient = this.config.platformWalletAddress || dispute.clientAddress;
+
+      console.log(`[DisputeResolver] Executing on-chain slashing...`);
+      console.log(`[DisputeResolver]   Dispute: ${dispute.id}`);
+      console.log(`[DisputeResolver]   Escrow: ${dispute.escrowId}`);
+      console.log(`[DisputeResolver]   Provider: ${dispute.providerAddress}`);
+      console.log(`[DisputeResolver]   Slash Amount: $${slashAmountUSDC.toFixed(6)} USDC (${(slashPercentage * 100).toFixed(1)}%)`);
+      console.log(`[DisputeResolver]   Recipient: ${recipient}`);
+
+      // Execute the slash via EscrowManager (handles real USDC transfer)
+      const result = await this.escrowManager.slash(
+        dispute.escrowId,
+        slashAmountUSDC,
+        recipient,
+        `Dispute ${dispute.id}: ${dispute.resolution?.explanation || 'Provider fault'}`
+      );
+
+      // Record the slashing transaction on the dispute
+      dispute.slashingTx = {
+        txHash: result.txHash,
+        blockNumber: result.blockNumber,
+        explorerUrl: result.explorerUrl,
+        slashedAmountUSDC: result.slashedAmount,
+        recipient,
+        executedAt: Date.now(),
+      };
+
+      console.log(`[DisputeResolver] ✅ Slashing executed successfully!`);
+      console.log(`[DisputeResolver]   TX Hash: ${result.txHash}`);
+      if (result.blockNumber) {
+        console.log(`[DisputeResolver]   Block: ${result.blockNumber}`);
+      }
+      if (result.explorerUrl) {
+        console.log(`[DisputeResolver]   Explorer: ${result.explorerUrl}`);
+      }
+
+    } catch (error) {
+      console.error(`[DisputeResolver] ❌ Slashing failed:`, error);
+      // Log the error but don't fail the dispute resolution
+      // The dispute is already resolved, slashing is a secondary action
+    }
   }
 
   /**
@@ -575,10 +670,31 @@ export class DisputeResolver extends EventEmitter<DisputeResolverEvents> {
   }
 
   /**
+   * Check if real USDC slashing is enabled
+   */
+  isRealSlashingEnabled(): boolean {
+    return this.config.enableRealSlashing;
+  }
+
+  /**
    * Get list of registered oracles
    */
   getRegisteredOracles(): string[] {
     return Array.from(this.referenceOracles.keys());
+  }
+
+  /**
+   * Get all disputes (for admin/monitoring)
+   */
+  getAllDisputes(): Dispute[] {
+    return Array.from(this.disputes.values());
+  }
+
+  /**
+   * Get disputes with slashing transactions
+   */
+  getSlashedDisputes(): Dispute[] {
+    return Array.from(this.disputes.values()).filter(d => d.slashingTx !== undefined);
   }
 }
 

@@ -103,9 +103,17 @@ export class GoogleProvider extends BaseLLMProvider {
     const data: GeminiResponse = await response.json();
     const latencyMs = Date.now() - startTime;
 
+    // Extract content from Gemini response
     const content = data.candidates[0]?.content?.parts
       ?.map(p => p.text)
       .join('') || '';
+
+    // Debug logging for response extraction
+    console.log(`[Google Provider] Response extracted: ${content.length} chars`);
+    if (!content || content.trim().length === 0) {
+      console.warn('[Google Provider] Empty or whitespace-only response from Gemini');
+      console.warn('[Google Provider] Raw response:', JSON.stringify(data.candidates?.[0]?.content));
+    }
 
     let finishReason: 'stop' | 'length' | 'content_filter' | 'error' = 'stop';
     const geminiFinish = data.candidates[0]?.finishReason;

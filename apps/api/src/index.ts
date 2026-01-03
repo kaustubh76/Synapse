@@ -35,7 +35,7 @@ import { setupFlowRoutes } from './routes/flow.js';
 import { setupPaymentVerificationRoutes } from './routes/payment-verification.js';
 import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
-import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine, getAgentCreditScorer } from '@synapse/core';
+import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine, getAgentCreditScorer, validateAllConfig } from '@synapse/core';
 import { seedDemoProviders } from './seed/demo-providers.js';
 
 const PORT = process.env.PORT || 3001;
@@ -47,6 +47,9 @@ const ALLOWED_ORIGINS = [
 ].filter(Boolean) as string[];
 
 async function main() {
+  // Validate environment configuration at startup
+  validateAllConfig();
+
   // Create Express app
   const app = express();
   const httpServer = createServer(app);

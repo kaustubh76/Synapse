@@ -195,8 +195,29 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
       this.emit('transfer:initiated', tx.hash, request.amount, request.recipient);
       console.log(`[USDC Transfer] Transaction submitted: ${tx.hash}`);
 
-      // Wait for confirmation
-      const receipt = await tx.wait();
+      // Wait for confirmation with timeout (60 seconds)
+      const CONFIRMATION_TIMEOUT = 60000;
+      const receiptPromise = tx.wait();
+      const timeoutPromise = new Promise<null>((_, reject) =>
+        setTimeout(() => reject(new Error('Transaction confirmation timeout after 60s')), CONFIRMATION_TIMEOUT)
+      );
+
+      let receipt;
+      try {
+        receipt = await Promise.race([receiptPromise, timeoutPromise]);
+      } catch (timeoutErr) {
+        console.log(`[USDC Transfer] Timeout waiting for confirmation, TX may still be pending: ${tx.hash}`);
+        return {
+          success: false,
+          txHash: tx.hash,
+          amount: request.amount,
+          recipient: request.recipient,
+          sender,
+          error: `Transaction submitted but confirmation timed out. TX: ${tx.hash}`,
+          explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorerUrl}/tx/${tx.hash}`,
+          timestamp,
+        };
+      }
 
       if (!receipt || receipt.status !== 1) {
         const error = 'Transaction failed on-chain';

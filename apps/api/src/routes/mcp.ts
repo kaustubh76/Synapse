@@ -688,6 +688,56 @@ router.post('/bilateral/create', (req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/mcp/bilateral/sessions
+ * List all bilateral sessions with summary
+ * NOTE: This must come BEFORE /bilateral/:sessionId to avoid route conflicts
+ */
+router.get('/bilateral/sessions', (req: Request, res: Response) => {
+  try {
+    const manager = getBilateralSessionManager();
+    const allSessions = manager.getAllSessions();
+
+    const sessions = allSessions.map((session) => ({
+      sessionId: session.sessionId,
+      clientId: session.clientId,
+      clientAddress: session.clientAddress,
+      serverId: session.serverId,
+      serverAddress: session.serverAddress,
+      clientPaidTotal: session.clientPaidTotal,
+      serverPaidTotal: session.serverPaidTotal,
+      netBalance: session.netBalance,
+      transactionCount: session.transactions.length,
+      status: session.status,
+      createdAt: session.createdAt,
+      network: session.network,
+    }));
+
+    // Sort by createdAt descending (newest first)
+    sessions.sort((a, b) => b.createdAt - a.createdAt);
+
+    res.json({
+      success: true,
+      data: {
+        sessions,
+        total: sessions.length,
+        settled: sessions.filter((s) => s.status === 'settled').length,
+        active: sessions.filter((s) => s.status === 'active').length,
+      },
+      timestamp: Date.now(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'SESSIONS_LIST_FAILED',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      },
+      timestamp: Date.now(),
+    });
+  }
+});
+
+/**
  * GET /api/mcp/bilateral/:sessionId
  * Get bilateral session
  */
@@ -862,34 +912,94 @@ router.post('/bilateral/:sessionId/server-payment', (req: Request, res: Response
 /**
  * POST /api/mcp/bilateral/:sessionId/settle
  * Settle a bilateral session with REAL on-chain USDC payment
+ *
+ * The settlement transfers USDC from the party that owes to the party that is owed:
+ * - If netBalance > 0: server owes client, transfer from server to client
+ * - If netBalance < 0: client owes server, transfer from client to server
  */
 router.post('/bilateral/:sessionId/settle', async (req: Request, res: Response) => {
   try {
     const { sessionId } = req.params;
     const manager = getBilateralSessionManager();
+    const identityFactory = getMCPIdentityFactory();
 
-    // Get platform wallet from env (with correct checksum)
-    const PLATFORM_WALLET = process.env.SYNAPSE_PLATFORM_WALLET || '0x742d35Cc6634c0532925A3b844BC9e7595F5bE21';
-    const PRIVATE_KEY = process.env.EIGENCLOUD_PRIVATE_KEY;
-
-    // REQUIRE real wallet configuration - no fallback
-    if (!PRIVATE_KEY) {
-      return res.status(400).json({
+    // Get the session to determine who owes whom
+    const session = manager.getSession(sessionId);
+    if (!session) {
+      return res.status(404).json({
         success: false,
         error: {
-          code: 'WALLET_NOT_CONFIGURED',
-          message: 'EIGENCLOUD_PRIVATE_KEY not configured. Real settlements require wallet setup.',
+          code: 'SESSION_NOT_FOUND',
+          message: 'Bilateral session not found',
         },
         timestamp: Date.now(),
       });
     }
 
+    if (session.status === 'settled') {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'ALREADY_SETTLED',
+          message: 'Session is already settled',
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    // Determine who needs to pay
+    let payerPrivateKey: string | undefined;
+    let payerId: string;
+    let payerAddress: string;
+
+    if (session.netBalance > 0) {
+      // Server owes client - server needs to pay
+      payerId = session.serverId;
+      payerAddress = session.serverAddress;
+    } else if (session.netBalance < 0) {
+      // Client owes server - client needs to pay
+      payerId = session.clientId;
+      payerAddress = session.clientAddress;
+    } else {
+      // No payment needed, just mark as settled
+      const result = await manager.settleSession(sessionId);
+      return res.json({
+        success: true,
+        data: {
+          sessionId: result.sessionId,
+          netAmount: result.netAmount,
+          direction: result.direction,
+          fromAddress: result.from,
+          toAddress: result.to,
+          settledAt: result.settledAt,
+          totalTransactions: result.transactionCount,
+          isRealTransfer: false,
+          note: 'No payment needed - net balance is zero',
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    // ALWAYS use platform wallet for settlements (it has ETH for gas + USDC)
+    // Agent wallets are dynamically created without ETH, so they can't pay gas fees
+    payerPrivateKey = process.env.EIGENCLOUD_PRIVATE_KEY;
+
+    if (!payerPrivateKey) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 'NO_PLATFORM_KEY',
+          message: 'EIGENCLOUD_PRIVATE_KEY not configured. Platform wallet is required for settlements.',
+        },
+        timestamp: Date.now(),
+      });
+    }
+
+    console.log(`[MCP Settle] Using platform wallet for settlement (payer: ${payerId})`);
+    console.log(`[MCP Settle] Direction: ${session.netBalance > 0 ? 'server-to-client' : 'client-to-server'}, Amount: $${Math.abs(session.netBalance)} USDC`);
+
     // Execute real on-chain settlement
-    const result = await manager.settleSessionWithPayment(
-      sessionId,
-      PRIVATE_KEY,
-      PLATFORM_WALLET
-    );
+    const result = await manager.settleSessionWithPayment(sessionId, payerPrivateKey);
 
     res.json({
       success: true,
@@ -904,11 +1014,12 @@ router.post('/bilateral/:sessionId/settle', async (req: Request, res: Response) 
         explorerUrl: result.explorerUrl,
         settledAt: result.settledAt,
         totalTransactions: result.transactionCount,
-        isRealTransfer: true,
+        isRealTransfer: !!result.txHash,
       },
       timestamp: Date.now(),
     });
   } catch (error) {
+    console.error('[MCP Settle] Error:', error);
     res.status(500).json({
       success: false,
       error: {
@@ -988,6 +1099,16 @@ export async function setupMCPRoutes(
   // Initialize persistence (load existing sessions)
   await bilateralManager.initialize();
   console.log('✅ Bilateral Session Manager initialized with persistence');
+
+  // Initialize MCP Identity Factory with persistence
+  const identityFactory = getMCPIdentityFactory({
+    network: 'base-sepolia',
+    enablePersistence: true,
+    persistencePath: './data/identities.json',
+    autoSaveInterval: 30000, // 30 seconds
+  });
+  await identityFactory.initialize();
+  console.log('✅ MCP Identity Factory initialized with persistence');
 
   bridge.on('intent:created', (intent) => {
     io.to('dashboard').emit('mcp:intent:created', {

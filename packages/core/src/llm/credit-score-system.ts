@@ -19,6 +19,10 @@ export interface CreditTransaction {
   timestamp: number;
   intentId?: string;
   status: 'pending' | 'completed' | 'failed';
+  // Blockchain transaction linking
+  txHash?: string;           // Real blockchain transaction hash
+  blockNumber?: number;      // Block number for verification
+  explorerUrl?: string;      // BaseScan link for easy verification
 }
 
 export interface CreditScorerConfig {
@@ -371,11 +375,16 @@ export class AgentCreditScorer extends EventEmitter {
   async recordPayment(
     agentId: string,
     amount: number,
-    onTime: boolean = true
+    onTime: boolean = true,
+    txHash?: string,
+    blockNumber?: number
   ): Promise<void> {
-    const profile = await this.getProfile(agentId);
+    // Auto-create profile if it doesn't exist (use agentId as address if it looks like an address)
+    let profile = await this.getProfile(agentId);
     if (!profile) {
-      throw new Error(`Profile not found for agent: ${agentId}`);
+      const address = agentId.startsWith('0x') ? agentId : `0x${agentId}`;
+      profile = await this.getOrCreateProfile(agentId, address);
+      console.log(`[CreditScorer] Auto-created profile for agent: ${agentId}`);
     }
 
     const txn: CreditTransaction = {
@@ -385,6 +394,9 @@ export class AgentCreditScorer extends EventEmitter {
       amount,
       timestamp: Date.now(),
       status: 'completed',
+      txHash,
+      blockNumber,
+      explorerUrl: txHash ? `https://sepolia.basescan.org/tx/${txHash}` : undefined,
     };
 
     // Update profile

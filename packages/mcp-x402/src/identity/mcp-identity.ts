@@ -2,11 +2,13 @@
 // MCP IDENTITY FACTORY
 // Auto-generates cryptographic wallet identity for MCP clients
 // Supports local wallets (ethers.js) and Crossmint MPC wallets
+// Now with persistence to survive server restarts
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
 import { ethers } from 'ethers';
 import { nanoid } from 'nanoid';
+import { getIdentityPersistence, type PersistedIdentity, type IdentityPersistenceConfig } from './identity-persistence.js';
 
 // -------------------- TYPES --------------------
 
@@ -47,6 +49,12 @@ export interface IdentityFactoryConfig {
   crossmintApiKey?: string;
   /** Crossmint API URL */
   crossmintApiUrl?: string;
+  /** Enable persistence to survive restarts */
+  enablePersistence?: boolean;
+  /** Path to persistence file */
+  persistencePath?: string;
+  /** Auto-save interval in milliseconds */
+  autoSaveInterval?: number;
 }
 
 interface IdentityFactoryEvents {
@@ -94,8 +102,10 @@ class EthersLocalWallet implements LocalWallet {
 // -------------------- IDENTITY FACTORY --------------------
 
 export class MCPIdentityFactory extends EventEmitter<IdentityFactoryEvents> {
-  private config: Required<IdentityFactoryConfig>;
+  private config: Required<Omit<IdentityFactoryConfig, 'enablePersistence' | 'persistencePath' | 'autoSaveInterval'>>;
   private identityCache: Map<string, MCPIdentityWithWallet> = new Map();
+  private persistence: ReturnType<typeof getIdentityPersistence> | null = null;
+  private enablePersistence: boolean;
 
   constructor(config: IdentityFactoryConfig = {}) {
     super();
@@ -104,6 +114,103 @@ export class MCPIdentityFactory extends EventEmitter<IdentityFactoryEvents> {
       crossmintApiKey: config.crossmintApiKey || '',
       crossmintApiUrl: config.crossmintApiUrl || 'https://staging.crossmint.com/api/v1-alpha2',
     };
+    this.enablePersistence = config.enablePersistence ?? false;
+
+    if (this.enablePersistence) {
+      this.persistence = getIdentityPersistence({
+        dataPath: config.persistencePath,
+        autoSaveInterval: config.autoSaveInterval,
+        enableAutoSave: true,
+      });
+    }
+  }
+
+  /**
+   * Initialize factory - load persisted identities
+   */
+  async initialize(): Promise<void> {
+    if (!this.persistence) return;
+
+    await this.persistence.initialize();
+    const data = await this.persistence.load();
+
+    if (data) {
+      // Restore identities from persistence
+      for (const [id, persisted] of Object.entries(data.identities)) {
+        try {
+          // Recreate the wallet from the private key
+          const wallet = new EthersLocalWallet(persisted.privateKey);
+
+          const identity: MCPIdentityWithWallet = {
+            clientId: persisted.clientId,
+            address: persisted.address,
+            publicKey: persisted.publicKey,
+            createdAt: persisted.createdAt,
+            walletType: 'local',
+            network: persisted.network,
+            wallet,
+          };
+
+          this.identityCache.set(id, identity);
+          this.emit('identity:restored', identity);
+        } catch (error) {
+          console.error(`[MCPIdentity] Failed to restore identity ${id}:`, error);
+        }
+      }
+
+      console.log(`[MCPIdentityFactory] Restored ${this.identityCache.size} identities from persistence`);
+    }
+
+    // Start auto-save with a function that exports identities for persistence
+    this.persistence.startAutoSave(() => this.getIdentitiesForPersistence());
+  }
+
+  /**
+   * Shutdown factory - save and stop auto-save
+   */
+  async shutdown(): Promise<void> {
+    if (this.persistence) {
+      this.persistence.stopAutoSave();
+      await this.save();
+    }
+  }
+
+  /**
+   * Save current state to persistence
+   */
+  async save(): Promise<void> {
+    if (this.persistence) {
+      await this.persistence.save(this.getIdentitiesForPersistence());
+    }
+  }
+
+  /**
+   * Mark data as dirty (needs saving)
+   */
+  private markDirty(): void {
+    if (this.persistence) {
+      this.persistence.markDirty();
+    }
+  }
+
+  /**
+   * Convert identity cache to persistable format
+   */
+  private getIdentitiesForPersistence(): Map<string, PersistedIdentity> {
+    const persistable = new Map<string, PersistedIdentity>();
+
+    for (const [id, identity] of this.identityCache) {
+      persistable.set(id, {
+        clientId: identity.clientId,
+        address: identity.address,
+        publicKey: identity.publicKey,
+        privateKey: identity.wallet.privateKey,
+        createdAt: identity.createdAt,
+        network: identity.network,
+      });
+    }
+
+    return persistable;
   }
 
   /**
@@ -130,6 +237,9 @@ export class MCPIdentityFactory extends EventEmitter<IdentityFactoryEvents> {
 
       // Cache for later retrieval
       this.identityCache.set(id, identity);
+
+      // Mark for persistence
+      this.markDirty();
 
       this.emit('identity:created', identity);
       console.log(`[MCPIdentity] Created identity: ${id} -> ${wallet.address}`);
@@ -163,6 +273,9 @@ export class MCPIdentityFactory extends EventEmitter<IdentityFactoryEvents> {
 
       // Cache for later retrieval
       this.identityCache.set(id, identity);
+
+      // Mark for persistence
+      this.markDirty();
 
       this.emit('identity:restored', identity);
       console.log(`[MCPIdentity] Restored identity: ${id} -> ${wallet.address}`);
@@ -224,7 +337,11 @@ export class MCPIdentityFactory extends EventEmitter<IdentityFactoryEvents> {
    * Remove identity from cache
    */
   removeIdentity(clientId: string): boolean {
-    return this.identityCache.delete(clientId);
+    const deleted = this.identityCache.delete(clientId);
+    if (deleted) {
+      this.markDirty();
+    }
+    return deleted;
   }
 
   /**

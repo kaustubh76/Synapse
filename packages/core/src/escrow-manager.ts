@@ -234,7 +234,7 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
 
   /**
    * Release funds to provider on successful completion
-   * Supports both simulated and real USDC transfers
+   * Automatically uses REAL USDC transfers when private key is configured
    */
   async release(params: EscrowRelease): Promise<{
     txHash: string;
@@ -254,11 +254,15 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
       throw new Error(`Release amount ${params.amount} exceeds escrow ${escrow.amount}`);
     }
 
-    const refundAmount = escrow.amount - params.amount;
+    // Use real USDC transfer if private key is configured
+    if (this.config.escrowPrivateKey && this.config.enableRealTransfers !== false) {
+      return this.releaseReal({ ...params, escrowPrivateKey: this.config.escrowPrivateKey });
+    }
 
-    // Simulated release (backward compatibility)
-    const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
-    console.log(`[EscrowManager] Simulated release: ${txHash}`);
+    // Fallback to simulation only if explicitly enabled or no private key
+    const refundAmount = escrow.amount - params.amount;
+    const txHash = `0xsim_${Date.now().toString(16)}${nanoid(16)}`;
+    console.log(`[EscrowManager] Simulated release (no private key): ${txHash}`);
 
     escrow.status = EscrowStatus.RELEASED;
     escrow.releasedAt = Date.now();
@@ -354,7 +358,7 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
 
   /**
    * Full refund to client (intent failed or cancelled)
-   * Simulated version for backward compatibility
+   * Automatically uses REAL USDC transfers when private key is configured
    */
   async refund(escrowId: string, reason?: string): Promise<{
     txHash: string;
@@ -369,9 +373,14 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
       throw new Error(`Escrow ${escrowId} cannot be refunded`);
     }
 
-    // Simulate refund transaction
-    const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
-    console.log(`[EscrowManager] Simulated refund: ${txHash}`);
+    // Use real USDC transfer if private key is configured
+    if (this.config.escrowPrivateKey && this.config.enableRealTransfers !== false) {
+      return this.refundReal(escrowId, this.config.escrowPrivateKey, reason);
+    }
+
+    // Fallback to simulation only if no private key
+    const txHash = `0xsim_${Date.now().toString(16)}${nanoid(16)}`;
+    console.log(`[EscrowManager] Simulated refund (no private key): ${txHash}`);
 
     escrow.status = EscrowStatus.REFUNDED;
     escrow.refundedAt = Date.now();
@@ -448,7 +457,7 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
 
   /**
    * Slash a portion of escrow (for provider penalties)
-   * Simulated version for backward compatibility
+   * Automatically uses REAL USDC transfers when private key is configured
    */
   async slash(
     escrowId: string,
@@ -469,12 +478,17 @@ export class EscrowManager extends EventEmitter<EscrowManagerEvents> {
       throw new Error(`Escrow ${escrowId} is not funded`);
     }
 
+    // Use real USDC transfer if private key is configured
+    if (this.config.escrowPrivateKey && this.config.enableRealTransfers !== false) {
+      return this.slashReal(escrowId, amount, recipientAddress, reason, this.config.escrowPrivateKey);
+    }
+
+    // Fallback to simulation only if no private key
     const slashAmount = Math.min(amount, escrow.amount);
     const remainingAmount = escrow.amount - slashAmount;
 
-    // Simulate slash transaction
-    const txHash = `0x${Date.now().toString(16)}${nanoid(16)}`;
-    console.log(`[EscrowManager] Simulated slash: ${txHash}`);
+    const txHash = `0xsim_${Date.now().toString(16)}${nanoid(16)}`;
+    console.log(`[EscrowManager] Simulated slash (no private key): ${txHash}`);
 
     escrow.status = EscrowStatus.SLASHED;
     escrow.slashedAmount = slashAmount;

@@ -32,11 +32,12 @@
     "dev": "tsc --watch"
   },
   "dependencies": {
-    "@synapse/types": "*",
     "@synapse/mcp-x402": "*",
-    "nanoid": "^5.0.4",
+    "@synapse/types": "*",
+    "ethers": "^6.9.0",
     "eventemitter3": "^5.0.1",
-    "ethers": "^6.9.0"
+    "nanoid": "^5.0.4",
+    "snarkjs": "^0.7.5"
   },
   "devDependencies": {
     "typescript": "^5.3.3"

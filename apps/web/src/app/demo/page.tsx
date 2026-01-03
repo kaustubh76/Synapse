@@ -12,6 +12,9 @@ import {
 import Link from 'next/link'
 import { API_URL, RPC_URL, USDC_ADDRESS, NETWORK } from '@/lib/config'
 
+// Platform wallet that actually executes payments (has ETH + USDC)
+const PLATFORM_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
+
 // Types
 interface AgentIdentity {
   clientId: string
@@ -151,6 +154,28 @@ export default function DemoPage() {
     }
   }, [])
 
+  // Fetch balance with delay to wait for block confirmation
+  const fetchBalanceWithDelay = useCallback(async (address: string, delayMs: number = 3000) => {
+    // Wait for transaction to be mined
+    await new Promise(resolve => setTimeout(resolve, delayMs))
+    await fetchBalance(address)
+    // Fetch again after another delay to ensure we have latest
+    await new Promise(resolve => setTimeout(resolve, 2000))
+    await fetchBalance(address)
+  }, [fetchBalance])
+
+  // Auto-refresh platform wallet balance every 5 seconds while session is active
+  useEffect(() => {
+    if (session) {
+      // Fetch platform wallet balance (the actual wallet that pays)
+      fetchBalance(PLATFORM_WALLET)
+      const interval = setInterval(() => {
+        fetchBalance(PLATFORM_WALLET)
+      }, 5000)
+      return () => clearInterval(interval)
+    }
+  }, [session, fetchBalance])
+
   // Copy address
   const copyAddress = () => {
     if (identity?.address) {
@@ -176,7 +201,8 @@ export default function DemoPage() {
 
       if (data.success) {
         setIdentity(data.data)
-        await fetchBalance(data.data.address)
+        // Fetch platform wallet balance (the wallet that actually pays)
+        await fetchBalance(PLATFORM_WALLET)
 
         // Create bilateral session for this demo
         const sessionResponse = await fetch(`${API_URL}/api/mcp/bilateral/create`, {
@@ -333,8 +359,8 @@ export default function DemoPage() {
           totalSpent: prev.totalSpent + paymentAmount
         } : null)
 
-        // Refresh wallet balance after payment
-        await fetchBalance(identity.address)
+        // Refresh platform wallet balance after payment (with delay for block confirmation)
+        fetchBalanceWithDelay(PLATFORM_WALLET, 3000)
 
         // Check if LLM response suggests tool usage
         const toolCalls = parseToolCalls(bid.response)
@@ -463,10 +489,8 @@ export default function DemoPage() {
             totalSpent: prev.totalSpent + toolCost
           } : null)
 
-          // Refresh wallet balance after payment
-          if (identity) {
-            await fetchBalance(identity.address)
-          }
+          // Refresh platform wallet balance after payment (with delay for block confirmation)
+          fetchBalanceWithDelay(PLATFORM_WALLET, 3000)
         }
       } catch (err) {
         console.error('Tool execution error:', err)
@@ -726,10 +750,10 @@ export default function DemoPage() {
                   {walletBalance && (
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-xs text-gray-400">Balance</div>
+                        <div className="text-xs text-gray-400">Platform Credits</div>
                         <div className="text-xl font-bold text-green-400">${walletBalance.usdc} USDC</div>
                       </div>
-                      <button onClick={() => fetchBalance(identity.address)} className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700">
+                      <button onClick={() => fetchBalance(PLATFORM_WALLET)} className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700" title="Refresh platform wallet balance">
                         <RefreshCw className="w-4 h-4 text-gray-400" />
                       </button>
                     </div>
@@ -866,7 +890,12 @@ export default function DemoPage() {
                       </div>
 
                       <div className="bg-gray-800/30 rounded-lg p-4 mb-4 max-h-32 overflow-y-auto">
-                        <div className="text-sm text-gray-300 whitespace-pre-wrap">{bid.response}</div>
+                        <div className="text-sm text-gray-300 whitespace-pre-wrap">
+                          {bid.response && bid.response.trim().length > 0
+                            ? bid.response
+                            : <span className="text-gray-500 italic">No response content available</span>
+                          }
+                        </div>
                       </div>
 
                       <button

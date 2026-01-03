@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && npm ci && npm run build --workspace=packages/types && npm run build --workspace=apps/web",
+  "outputDirectory": ".next",
+  "installCommand": "echo 'Using root install'",
+  "devCommand": "next dev"
+}

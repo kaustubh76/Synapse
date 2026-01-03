@@ -88,11 +88,18 @@ export class EigenComputeClient extends EventEmitter<EigenComputeEvents> {
 
   constructor(config: EigenComputeConfig) {
     super();
+    // Default to production mode when API key is present
     this.config = {
       defaultTimeout: 30000,
-      demoMode: true,
+      demoMode: config.demoMode ?? !config.apiKey,  // Real mode if API key provided
       ...config
     };
+
+    if (this.config.demoMode) {
+      console.log('[EigenCompute] Demo mode enabled - using mock TEE attestations');
+    } else {
+      console.log('[EigenCompute] Production mode - using real EigenCloud API');
+    }
   }
 
   /**
@@ -448,12 +455,14 @@ let computeClientInstance: EigenComputeClient | null = null;
 export function getEigenComputeClient(config?: EigenComputeConfig): EigenComputeClient {
   if (!computeClientInstance) {
     if (!config) {
-      // Default demo configuration
+      const apiKey = process.env.EIGENCLOUD_API_KEY || '';
+      // Default to production mode if API key is present
       config = {
         apiEndpoint: process.env.EIGENCOMPUTE_API_URL || 'https://api.eigencloud.xyz',
-        apiKey: process.env.EIGENCLOUD_API_KEY || '',
+        apiKey,
         projectId: process.env.EIGENCLOUD_PROJECT_ID,
-        demoMode: process.env.EIGENCLOUD_DEMO_MODE !== 'false'
+        // Demo mode only if explicitly enabled OR no API key provided
+        demoMode: process.env.EIGENCLOUD_DEMO_MODE === 'true' || !apiKey
       };
     }
     computeClientInstance = new EigenComputeClient(config);

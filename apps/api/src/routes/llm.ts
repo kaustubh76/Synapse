@@ -866,7 +866,7 @@ router.post('/credit/:agentId/create', async (req: Request, res: Response) => {
 router.post('/credit/:agentId/payment', async (req: Request, res: Response) => {
   try {
     const { agentId } = req.params;
-    const { amount, onTime = true } = req.body;
+    const { amount, onTime = true, txHash, blockNumber } = req.body;
 
     if (!amount || amount <= 0) {
       return res.status(400).json({
@@ -879,7 +879,7 @@ router.post('/credit/:agentId/payment', async (req: Request, res: Response) => {
     }
 
     const scorer = getAgentCreditScorer();
-    await scorer.recordPayment(agentId, amount, onTime);
+    await scorer.recordPayment(agentId, amount, onTime, txHash, blockNumber);
 
     const updatedProfile = await scorer.getProfile(agentId);
 

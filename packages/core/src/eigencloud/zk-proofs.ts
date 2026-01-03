@@ -2,9 +2,25 @@
 // ZK PROOF SERVICE
 // Zero-Knowledge Proof Generation and Verification
 // For verifiable computation proofs in Synapse
+// NOW WITH REAL SNARKJS INTEGRATION
 // ============================================================
 
 import { EventEmitter } from 'eventemitter3';
+import { createHash } from 'crypto';
+
+// Dynamic import for snarkjs (ESM module)
+let snarkjs: any = null;
+async function loadSnarkjs() {
+  if (!snarkjs) {
+    try {
+      snarkjs = await import('snarkjs');
+      console.log('[ZKProofService] snarkjs loaded successfully');
+    } catch (error) {
+      console.warn('[ZKProofService] snarkjs not available, using mock proofs');
+    }
+  }
+  return snarkjs;
+}
 
 export interface ZKProofConfig {
   verifierEndpoint: string;
@@ -12,6 +28,17 @@ export interface ZKProofConfig {
   defaultProtocol?: 'groth16' | 'plonk' | 'stark';
   defaultCurve?: 'bn128' | 'bls12_381';
   demoMode?: boolean;
+  /** Enable real snarkjs proof generation/verification */
+  enableRealProofs?: boolean;
+  /** Path to circuit files (wasm and zkey) */
+  circuitsPath?: string;
+}
+
+/** Circuit files for real ZK proofs */
+export interface CircuitFiles {
+  wasmPath: string;
+  zkeyPath: string;
+  verificationKey: object;
 }
 
 export interface ZKProof {
@@ -76,6 +103,8 @@ export class ZKProofService extends EventEmitter<ZKProofEvents> {
   private proofCache: Map<string, ZKProof> = new Map();
   private verificationCache: Map<string, ZKVerificationResult> = new Map();
   private circuits: Map<string, { verificationKey: string; circuitHash: string }> = new Map();
+  private circuitFiles: Map<string, CircuitFiles> = new Map();
+  private snarkjsReady: boolean = false;
 
   constructor(config: ZKProofConfig) {
     super();
@@ -83,17 +112,60 @@ export class ZKProofService extends EventEmitter<ZKProofEvents> {
       defaultProtocol: 'groth16',
       defaultCurve: 'bn128',
       demoMode: true,
+      enableRealProofs: process.env.ENABLE_REAL_ZK_PROOFS === 'true',
+      circuitsPath: process.env.ZK_CIRCUITS_PATH || './circuits',
       ...config
     };
 
     // Pre-register common circuits
     this.registerDefaultCircuits();
+
+    // Initialize snarkjs if real proofs enabled
+    if (this.config.enableRealProofs) {
+      this.initializeSnarkjs();
+    }
+  }
+
+  /**
+   * Initialize snarkjs library
+   */
+  private async initializeSnarkjs(): Promise<void> {
+    const snarks = await loadSnarkjs();
+    if (snarks) {
+      this.snarkjsReady = true;
+      console.log('[ZKProofService] Real ZK proofs ENABLED (snarkjs)');
+    } else {
+      console.warn('[ZKProofService] snarkjs unavailable, falling back to mock proofs');
+    }
+  }
+
+  /**
+   * Check if real proofs are available
+   */
+  isRealProofsEnabled(): boolean {
+    return this.config.enableRealProofs === true && this.snarkjsReady;
+  }
+
+  /**
+   * Register circuit files for a computation type
+   */
+  registerCircuitFiles(computationType: string, files: CircuitFiles): void {
+    this.circuitFiles.set(computationType, files);
+    console.log(`[ZKProofService] Registered circuit files for: ${computationType}`);
   }
 
   /**
    * Generate a ZK proof for a computation
    */
   async generateProof(request: ProofGenerationRequest): Promise<ZKProof> {
+    // Use real snarkjs if enabled and circuit files are available
+    if (this.config.enableRealProofs && this.snarkjsReady) {
+      const circuitFiles = this.circuitFiles.get(request.computationType);
+      if (circuitFiles) {
+        return this.generateRealProof(request, circuitFiles);
+      }
+    }
+
     if (this.config.demoMode) {
       return this.mockGenerateProof(request);
     }
@@ -132,6 +204,80 @@ export class ZKProofService extends EventEmitter<ZKProofEvents> {
   }
 
   /**
+   * Generate a real ZK proof using snarkjs
+   */
+  private async generateRealProof(
+    request: ProofGenerationRequest,
+    circuitFiles: CircuitFiles
+  ): Promise<ZKProof> {
+    const snarks = await loadSnarkjs();
+    if (!snarks) {
+      throw new Error('snarkjs not available');
+    }
+
+    console.log('[ZKProofService] Generating REAL ZK proof with snarkjs...');
+    console.log(`[ZKProofService]   Computation: ${request.computationType}`);
+
+    try {
+      // Compute hashes of input and output for the circuit
+      const inputHash = this.computeCryptoHash(JSON.stringify(request.input));
+      const outputHash = this.computeCryptoHash(JSON.stringify(request.output));
+
+      // Circuit inputs (these would match your circom circuit's signals)
+      const circuitInputs = {
+        inputHash: BigInt('0x' + inputHash.slice(0, 16)).toString(),
+        outputHash: BigInt('0x' + outputHash.slice(0, 16)).toString()
+      };
+
+      console.log('[ZKProofService]   Input hash:', inputHash.slice(0, 16));
+      console.log('[ZKProofService]   Output hash:', outputHash.slice(0, 16));
+
+      // Generate proof using snarkjs groth16
+      const { proof, publicSignals } = await snarks.groth16.fullProve(
+        circuitInputs,
+        circuitFiles.wasmPath,
+        circuitFiles.zkeyPath
+      );
+
+      // Serialize proof
+      const proofString = JSON.stringify(proof);
+      const proofBase64 = Buffer.from(proofString).toString('base64');
+
+      const zkProof: ZKProof = {
+        id: `proof_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        protocol: 'groth16',
+        curve: 'bn128',
+        proof: proofBase64,
+        publicInputs: publicSignals.map((s: any) => s.toString()),
+        verificationKey: JSON.stringify(circuitFiles.verificationKey),
+        circuitId: this.computeCryptoHash(circuitFiles.wasmPath),
+        timestamp: Date.now()
+      };
+
+      this.proofCache.set(zkProof.id, zkProof);
+      this.emit('proof:generated', zkProof);
+
+      console.log(`[ZKProofService] ✅ Real ZK proof generated!`);
+      console.log(`[ZKProofService]   Proof ID: ${zkProof.id}`);
+      console.log(`[ZKProofService]   Public inputs: ${publicSignals.length}`);
+
+      return zkProof;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[ZKProofService] ❌ Proof generation failed:', errorMessage);
+      this.emit('proof:failed', errorMessage);
+      throw error;
+    }
+  }
+
+  /**
+   * Compute SHA256 hash for circuit inputs
+   */
+  private computeCryptoHash(data: string): string {
+    return createHash('sha256').update(data).digest('hex');
+  }
+
+  /**
    * Verify a ZK proof
    */
   async verifyProof(request: ProofVerificationRequest): Promise<ZKVerificationResult> {
@@ -140,6 +286,11 @@ export class ZKProofService extends EventEmitter<ZKProofEvents> {
 
     if (cached) {
       return cached;
+    }
+
+    // Use real snarkjs verification if enabled
+    if (this.config.enableRealProofs && this.snarkjsReady && request.proof.verificationKey) {
+      return this.verifyRealProof(request);
     }
 
     if (this.config.demoMode) {
@@ -180,6 +331,64 @@ export class ZKProofService extends EventEmitter<ZKProofEvents> {
 
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      return {
+        valid: false,
+        proofId: request.proof.id,
+        verifiedAt: Date.now(),
+        publicInputs: request.proof.publicInputs,
+        error: errorMessage
+      };
+    }
+  }
+
+  /**
+   * Verify a proof using snarkjs groth16
+   */
+  private async verifyRealProof(request: ProofVerificationRequest): Promise<ZKVerificationResult> {
+    const snarks = await loadSnarkjs();
+    if (!snarks) {
+      return {
+        valid: false,
+        proofId: request.proof.id,
+        verifiedAt: Date.now(),
+        publicInputs: request.proof.publicInputs,
+        error: 'snarkjs not available'
+      };
+    }
+
+    console.log('[ZKProofService] Verifying proof with snarkjs...');
+    console.log(`[ZKProofService]   Proof ID: ${request.proof.id}`);
+
+    try {
+      // Decode the proof
+      const proofData = JSON.parse(Buffer.from(request.proof.proof, 'base64').toString());
+      const verificationKey = JSON.parse(request.proof.verificationKey);
+
+      // Verify using snarkjs groth16
+      const isValid = await snarks.groth16.verify(
+        verificationKey,
+        request.proof.publicInputs,
+        proofData
+      );
+
+      const result: ZKVerificationResult = {
+        valid: isValid,
+        proofId: request.proof.id,
+        verifiedAt: Date.now(),
+        publicInputs: request.proof.publicInputs,
+        computationHash: request.proof.publicInputs[0]
+      };
+
+      this.verificationCache.set(request.proof.id, result);
+      this.emit('proof:verified', result);
+
+      console.log(`[ZKProofService] ${isValid ? '✅' : '❌'} Verification result: ${isValid ? 'VALID' : 'INVALID'}`);
+
+      return result;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('[ZKProofService] ❌ Verification failed:', errorMessage);
+
       return {
         valid: false,
         proofId: request.proof.id,
@@ -431,7 +640,9 @@ export function getZKProofService(config?: ZKProofConfig): ZKProofService {
       config = {
         verifierEndpoint: process.env.ZK_VERIFIER_URL || 'https://verify.eigencloud.xyz',
         apiKey: process.env.EIGENCLOUD_API_KEY,
-        demoMode: process.env.ZK_DEMO_MODE !== 'false'
+        demoMode: process.env.ZK_DEMO_MODE !== 'false',
+        enableRealProofs: process.env.ENABLE_REAL_ZK_PROOFS === 'true',
+        circuitsPath: process.env.ZK_CIRCUITS_PATH || './circuits'
       };
     }
     zkProofServiceInstance = new ZKProofService(config);
