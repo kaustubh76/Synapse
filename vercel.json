@@ -1,11 +1,8 @@
 {
   "version": 2,
   "framework": "nextjs",
-  "buildCommand": "npx turbo build --filter=@synapse/web",
+  "buildCommand": "NEXT_PUBLIC_API_URL=https://synapse-api-production-1d6c.up.railway.app npx turbo build --filter=@synapse/web",
   "outputDirectory": "apps/web/.next",
   "installCommand": "npm ci",
-  "ignoreCommand": "exit 0",
-  "env": {
-    "NEXT_PUBLIC_API_URL": "https://synapse-api-production-1d6c.up.railway.app"
-  }
+  "ignoreCommand": "exit 0"
 }

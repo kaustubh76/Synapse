@@ -151,12 +151,9 @@ export default function MCPPage() {
   // Fetch on-chain balance from API
   const fetchBalance = useCallback(async (address: string): Promise<OnChainBalance | null> => {
     try {
-      // Hardcode API URL to ensure it goes to the right server
-      const apiBase = 'http://localhost:3001'
       console.log('[MCP] API_URL from config:', API_URL)
-      console.log('[MCP] Using apiBase:', apiBase)
       console.log('[MCP] Fetching balance for:', address)
-      const url = `${apiBase}/api/wallet/${address}/onchain-balance`
+      const url = `${API_URL}/api/wallet/${address}/onchain-balance`
       console.log('[MCP] Fetch URL:', url)
       const response = await fetch(url)
       const data = await response.json()
