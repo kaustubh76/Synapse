@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Activity, Users, Zap, TrendingUp, Wallet, Shield, Cpu, Brain, CreditCard, Layers, ChevronRight } from 'lucide-react'
+import { Activity, Users, Zap, TrendingUp, Wallet, Shield, Cpu, Brain, CreditCard, Layers, ChevronRight, Gavel, Sparkles } from 'lucide-react'
 import Link from 'next/link'
 import { Header } from '@/components/Header'
 import { IntentForm } from '@/components/IntentForm'
@@ -465,7 +465,7 @@ export default function Home() {
           className="mt-12"
         >
           <h2 className="text-xl font-semibold mb-6 text-gray-300 text-center">Explore Synapse Features</h2>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* LLM Marketplace */}
             <Link href="/llm" className="group">
               <div className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 rounded-2xl p-6 border border-purple-500/30 hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10">
@@ -524,6 +524,35 @@ export default function Home() {
                   Explore <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
+            </Link>
+
+            {/* Disputes */}
+            <Link href="/disputes" className="group">
+              <div className="bg-gradient-to-br from-red-900/30 to-gray-900/50 rounded-2xl p-6 border border-red-500/30 hover:border-red-500/50 transition-all hover:shadow-lg hover:shadow-red-500/10">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
+                    <Gavel className="w-5 h-5 text-red-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors">
+                    Disputes
+                  </h3>
+                </div>
+                <p className="text-gray-400 text-sm mb-4">
+                  Oracle-backed dispute resolution with real USDC slashing on Base Sepolia.
+                </p>
+                <div className="flex items-center text-red-400 text-sm font-medium">
+                  Test Slashing <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
+                </div>
+              </div>
+            </Link>
+          </div>
+
+          {/* Interactive Demo Link */}
+          <div className="mt-6 text-center">
+            <Link href="/demo" className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-xl font-medium transition-all text-white">
+              <Sparkles className="w-5 h-5" />
+              Try Interactive Demo
+              <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
         </motion.div>

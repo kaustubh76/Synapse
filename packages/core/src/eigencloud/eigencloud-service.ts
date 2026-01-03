@@ -98,8 +98,8 @@ export class EigencloudService extends EventEmitter<EigencloudServiceEvents> {
 
   constructor(config: EigencloudConfig = {}) {
     super();
-    // Default to demo mode unless explicitly set to false
-    const demoMode = config.demoMode ?? true;
+    // Default to REAL mode unless explicitly set to true or no API key
+    const demoMode = config.demoMode ?? (process.env.EIGENCLOUD_DEMO_MODE === 'true');
 
     this.config = {
       ...config,

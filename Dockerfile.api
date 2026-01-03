@@ -27,11 +27,12 @@ RUN npm ci
 COPY packages/ ./packages/
 COPY apps/api/ ./apps/api/
 
-# Build packages in order
+# Build packages in correct dependency order
+# types → mcp-x402 → core → sdk → api
 RUN npm run build --workspace=packages/types
+RUN npm run build --workspace=packages/mcp-x402
 RUN npm run build --workspace=packages/core
 RUN npm run build --workspace=packages/sdk
-RUN npm run build --workspace=packages/mcp-x402
 RUN npm run build --workspace=apps/api
 
 # Runtime stage

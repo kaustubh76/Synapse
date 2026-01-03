@@ -102,6 +102,33 @@ export function setupDisputeRoutes(
     }
   });
 
+  // -------------------- GET ALL DISPUTES --------------------
+  // IMPORTANT: This route MUST be before /:disputeId to avoid matching "all" as an ID
+  router.get('/all', async (req: Request, res: Response) => {
+    try {
+      const disputes = disputeResolver.getAllDisputes();
+
+      res.json({
+        success: true,
+        data: {
+          disputes,
+          total: disputes.length
+        },
+        timestamp: Date.now()
+      } as ApiResponse<{ disputes: Dispute[]; total: number }>);
+    } catch (error) {
+      console.error('Error getting all disputes:', error);
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'GET_DISPUTES_ERROR',
+          message: error instanceof Error ? error.message : 'Failed to get disputes'
+        },
+        timestamp: Date.now()
+      } as ApiResponse<never>);
+    }
+  });
+
   // -------------------- GET DISPUTE CONFIG --------------------
   // IMPORTANT: This route MUST be before /:disputeId to avoid matching "config" as an ID
   router.get('/config', async (req: Request, res: Response) => {

@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "lastSaved": 1767450490873,
+  "lastSaved": 1767481395056,
   "identities": {
     "mcp_TNv4WKF7UkFy": {
       "clientId": "mcp_TNv4WKF7UkFy",
@@ -216,6 +216,46 @@
       "publicKey": "0x0496f9caa1ee9577fb9f723881df4264e3c81bebedcc9bf1447a35e5bb4c3223f41d5e2cd6728cd55d5d742dc8ed77cd503dfa2013d439118f239ec22e3c44be3b",
       "privateKey": "0xa11331ce8aa51b78975c25d7edc684ecb177b286e6cae73874d346120bad8aef",
       "createdAt": 1767450467565,
+      "network": "base-sepolia"
+    },
+    "real_final_test": {
+      "clientId": "real_final_test",
+      "address": "0x86CC3C4Af6Ff31258F7E2e143B884e883f0245CF",
+      "publicKey": "0x0444dffe10e113510c73e90414462a60ab1b46b8c0814d7a8a8e8c0f2558d40375179522c0ced77ab8bdd96efbef974387239b174d176c94008bb915c04f5614bc",
+      "privateKey": "0xf8c0fb234aedc75a6c94b2c3ee2938ff65b9e45eb06e3201a8be9dd9d18264fd",
+      "createdAt": 1767451334313,
+      "network": "base-sepolia"
+    },
+    "mcp_I1_7UxQ7sXvI": {
+      "clientId": "mcp_I1_7UxQ7sXvI",
+      "address": "0xC6Dce9eA49141f94806496E42F95A6D3f0e9690D",
+      "publicKey": "0x04d9ad79b3f058543cc4d09f1543d7ad69b36a206f5a7de0c31c0e9453d04dc9e54484aab32cb31ba4afafd5eed9b7c85da1eeafa363618ad9371a318bf809e5bb",
+      "privateKey": "0xadab71834f3c1cef4a4c2b69612b390099481321bf3c48d1b7b24e6840214648",
+      "createdAt": 1767470782924,
+      "network": "base-sepolia"
+    },
+    "flow-agent-1767470798736": {
+      "clientId": "flow-agent-1767470798736",
+      "address": "0xaAc6fF43c320742Df12c49710B4F2DC290Ef71CA",
+      "publicKey": "0x04b7c8ef0a70f38457863e1ca850f720f4fc5bf9f9ae61dc622e075665280d65e03cc05fcce5c877d9d5b2dda751a6a8e523949a9dc951006f1e69a73e8c7d569d",
+      "privateKey": "0x74ebd89c86cc318e43f7ed97b060ec9f865dcbde8f304ca7769321ec02af817e",
+      "createdAt": 1767470798757,
+      "network": "base-sepolia"
+    },
+    "mcp_YAvS_ANS-AIB": {
+      "clientId": "mcp_YAvS_ANS-AIB",
+      "address": "0x720847B8885f7CFFea03dBB8Ce576cBa8DFcA837",
+      "publicKey": "0x040d8b0506ecdb7a6702c7dc6c2bcd6568b0342815e6d8288d6e653ed72ea759d3f1218a656e4ec1013541f294fa56c1ec2a093ac77d4a0efa210005858682645c",
+      "privateKey": "0xc386669e47b2411701732ceb6430fa23e838853479925d80d256cc5b4ef6bf5f",
+      "createdAt": 1767481306550,
+      "network": "base-sepolia"
+    },
+    "test_real_payment_agent": {
+      "clientId": "test_real_payment_agent",
+      "address": "0xd87E2F4193570B2506f3fDD3aB14E1CBa9ACf812",
+      "publicKey": "0x04a4fd1d311119819db4b4e6296566ae44839371a5b20ecc34cc8dae066cd6bc100cb22ac014b4c9a0e4d9dd29a21d3ee7cc2befaec6382bd404bbeec8a30ba724",
+      "privateKey": "0x9384058698a414453caccf1b7dd862efe30effa102a776271e52722ea30d0729",
+      "createdAt": 1767481369571,
       "network": "base-sepolia"
     }
   }

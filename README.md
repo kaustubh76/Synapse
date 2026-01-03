@@ -4,6 +4,25 @@
 
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.3-blue)](https://www.typescriptlang.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Live Demo](https://img.shields.io/badge/Demo-Live-brightgreen)](https://synapse-web-gold.vercel.app)
+[![x402 Hackathon](https://img.shields.io/badge/x402-Hackathon-purple)](https://www.x402hackathon.com/)
+
+## Live Deployment
+
+| Service | URL | Status |
+|---------|-----|--------|
+| **Web App** | [synapse-web-gold.vercel.app](https://synapse-web-gold.vercel.app) | ✅ Live |
+| **API** | [synapse-api-production-1d6c.up.railway.app](https://synapse-api-production-1d6c.up.railway.app) | ✅ Live |
+| **Full Demo** | [synapse-web-gold.vercel.app/demo](https://synapse-web-gold.vercel.app/demo) | ✅ Live |
+
+### Verified Real Blockchain Transactions (Base Sepolia)
+
+| Feature | Transaction | Block |
+|---------|-------------|-------|
+| Escrow Release | [0xd218...4160](https://sepolia.basescan.org/tx/0xd21898805b133c3f46b0bfe456fa71f5de90a8a51a54d9f01e996aa823bf4160) | 35814301 |
+| LLM Payment | [0x14ca...90f4](https://sepolia.basescan.org/tx/0x14cac8e925e366d7842f18f47ac7641aa1b92a66fcf2b3ff14c4a3c55b6690f4) | 35841574 |
+| Session Settlement | [0x7009...4248](https://sepolia.basescan.org/tx/0x70095315bb589da1061ffef585c9c2364828595689431685c9787e869d124248) | 35841587 |
+| Dispute Slashing | [0x6424...cadf](https://sepolia.basescan.org/tx/0x64244424246cbeb2ed31cd7c2d2b98d4efe1bc49650519576785f578728cdadf) | 35841967 |
 
 ---
 
@@ -47,8 +66,14 @@ cd apps/web && npm run dev    # Web UI on :3002
 
 ### 🌐 Access the Platform
 
-- **Intent Network**: http://localhost:3002
-- **LLM Comparison UI**: http://localhost:3002/llm
+**Production (Deployed)**:
+- **Web App**: https://synapse-web-gold.vercel.app
+- **Full Demo**: https://synapse-web-gold.vercel.app/demo
+- **API**: https://synapse-api-production-1d6c.up.railway.app
+
+**Local Development**:
+- **Intent Network**: http://localhost:3000
+- **LLM Comparison UI**: http://localhost:3000/llm
 - **API**: http://localhost:3001
 
 ### 🧪 Run Demos
@@ -294,6 +319,48 @@ synapse/
 
 ---
 
+## 🎯 Production Features (All Real, No Mocks)
+
+| Feature | Status | Details |
+|---------|--------|---------|
+| **Real USDC Transfers** | ✅ Live | Base Sepolia blockchain |
+| **Real LLM APIs** | ✅ Live | Groq, Google Gemini |
+| **Real Oracles** | ✅ Live | CoinGecko (crypto), Open-Meteo (weather) |
+| **Dispute Slashing** | ✅ Live | 10% penalty on-chain |
+| **Credit Persistence** | ✅ Live | File-based with txHash linking |
+| **Session Settlement** | ✅ Live | Bilateral payment channels |
+
+### Environment Configuration
+
+```bash
+# Required for real blockchain operations
+EIGENCLOUD_PRIVATE_KEY=<funded-wallet>
+EIGENCLOUD_WALLET_ADDRESS=0x...
+ESCROW_PRIVATE_KEY=<escrow-wallet>
+ENABLE_REAL_ESCROW=true
+ENABLE_REAL_ORACLES=true
+X402_DEMO_MODE=false
+```
+
+---
+
+## 🏆 x402 Hackathon Submission
+
+**Built for the x402 Hackathon** - Demonstrating real-world micropayments for AI agents.
+
+Key Innovations:
+1. **Multi-LLM Marketplace** - First transparent comparison across 6+ providers
+2. **FICO-style Credit for AI** - 300-850 scoring with automatic benefits
+3. **Streaming Micropayments** - Token-by-token USDC with quality control
+4. **One-Liner Monetization** - Wrap any MCP tool with 7 pricing models
+5. **Oracle-Backed Disputes** - Real CoinGecko/Open-Meteo data for resolution
+
+---
+
 **Built with ❤️ for the future of autonomous AI agents**
 
 🤖 **Let's build the agent economy together!**
+
+---
+
+*Deployed: January 2026 | x402 Hackathon Submission*

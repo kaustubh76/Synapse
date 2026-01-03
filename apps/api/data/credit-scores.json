@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "lastSaved": 1767450550863,
+  "lastSaved": 1767481424855,
   "profiles": {
     "persistent_agent_001": {
       "agentId": "persistent_agent_001",
@@ -63,18 +63,18 @@
     "0xcF1A4587a4470634fc950270cab298B79b258eDe": {
       "agentId": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
       "address": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
-      "creditScore": 650,
-      "creditTier": "good",
-      "lastScoreUpdate": 1767039966621,
-      "unsecuredCreditLimit": 1000,
-      "dailySpendLimit": 100,
-      "monthlySpendLimit": 1000,
+      "creditScore": 784,
+      "creditTier": "excellent",
+      "lastScoreUpdate": 1767479591559,
+      "unsecuredCreditLimit": 5000,
+      "dailySpendLimit": 500,
+      "monthlySpendLimit": 5000,
       "currentDailySpend": 0,
       "currentMonthlySpend": 0,
       "currentBalance": 0,
-      "availableCredit": 1000,
+      "availableCredit": 5000,
       "totalTransactions": 0,
-      "successfulPayments": 0,
+      "successfulPayments": 3,
       "latePayments": 0,
       "defaults": 0,
       "accountAge": 0,
@@ -82,12 +82,12 @@
         "paymentHistory": 100,
         "creditUtilization": 100,
         "accountAge": 40,
-        "creditMix": 60,
-        "recentActivity": 80
+        "creditMix": 70,
+        "recentActivity": 100
       },
       "stakedAmount": 0,
       "collateralRatio": 0,
-      "tierDiscount": 0.1
+      "tierDiscount": 0.15
     },
     "0x4245140476B03A2c1040Aa077c78Dc806504fB39": {
       "agentId": "0x4245140476B03A2c1040Aa077c78Dc806504fB39",
@@ -349,6 +349,151 @@
       "stakedAmount": 0,
       "collateralRatio": 0,
       "tierDiscount": 0.15
+    },
+    "real_final_test": {
+      "agentId": "real_final_test",
+      "address": "0xreal_final_test",
+      "creditScore": 784,
+      "creditTier": "excellent",
+      "lastScoreUpdate": 1767451435546,
+      "unsecuredCreditLimit": 5000,
+      "dailySpendLimit": 500,
+      "monthlySpendLimit": 5000,
+      "currentDailySpend": 0,
+      "currentMonthlySpend": 0,
+      "currentBalance": 0,
+      "availableCredit": 5000,
+      "totalTransactions": 0,
+      "successfulPayments": 1,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "factors": {
+        "paymentHistory": 100,
+        "creditUtilization": 100,
+        "accountAge": 40,
+        "creditMix": 70,
+        "recentActivity": 100
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0.15
+    },
+    "0xC6Dce9eA49141f94806496E42F95A6D3f0e9690D": {
+      "agentId": "0xC6Dce9eA49141f94806496E42F95A6D3f0e9690D",
+      "address": "0xC6Dce9eA49141f94806496E42F95A6D3f0e9690D",
+      "creditScore": 650,
+      "creditTier": "good",
+      "lastScoreUpdate": 1767470794771,
+      "unsecuredCreditLimit": 1000,
+      "dailySpendLimit": 100,
+      "monthlySpendLimit": 1000,
+      "currentDailySpend": 0,
+      "currentMonthlySpend": 0,
+      "currentBalance": 0,
+      "availableCredit": 1000,
+      "totalTransactions": 0,
+      "successfulPayments": 0,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "factors": {
+        "paymentHistory": 100,
+        "creditUtilization": 100,
+        "accountAge": 40,
+        "creditMix": 60,
+        "recentActivity": 80
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0.1
+    },
+    "flow-agent-1767470798736": {
+      "agentId": "flow-agent-1767470798736",
+      "address": "0xflow-agent-1767470798736",
+      "creditScore": 784,
+      "creditTier": "excellent",
+      "lastScoreUpdate": 1767470804719,
+      "unsecuredCreditLimit": 5000,
+      "dailySpendLimit": 500,
+      "monthlySpendLimit": 5000,
+      "currentDailySpend": 0,
+      "currentMonthlySpend": 0,
+      "currentBalance": 0,
+      "availableCredit": 5000,
+      "totalTransactions": 0,
+      "successfulPayments": 1,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "factors": {
+        "paymentHistory": 100,
+        "creditUtilization": 100,
+        "accountAge": 40,
+        "creditMix": 70,
+        "recentActivity": 100
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0.15
+    },
+    "test_agent_real_mode": {
+      "agentId": "test_agent_real_mode",
+      "address": "unknown",
+      "creditScore": 650,
+      "creditTier": "good",
+      "lastScoreUpdate": 1767481201681,
+      "unsecuredCreditLimit": 1000,
+      "dailySpendLimit": 100,
+      "monthlySpendLimit": 1000,
+      "currentDailySpend": 0.00000499,
+      "currentMonthlySpend": 0.00000499,
+      "currentBalance": 0.00000499,
+      "availableCredit": 999.99999501,
+      "totalTransactions": 2,
+      "successfulPayments": 0,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "factors": {
+        "paymentHistory": 100,
+        "creditUtilization": 100,
+        "accountAge": 40,
+        "creditMix": 60,
+        "recentActivity": 80
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0.1
+    },
+    "test_real_payment_agent": {
+      "agentId": "test_real_payment_agent",
+      "address": "0xtest_real_payment_agent",
+      "creditScore": 784,
+      "creditTier": "excellent",
+      "lastScoreUpdate": 1767481410692,
+      "unsecuredCreditLimit": 5000,
+      "dailySpendLimit": 500,
+      "monthlySpendLimit": 5000,
+      "currentDailySpend": 0,
+      "currentMonthlySpend": 0,
+      "currentBalance": 0,
+      "availableCredit": 5000,
+      "totalTransactions": 0,
+      "successfulPayments": 1,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "factors": {
+        "paymentHistory": 100,
+        "creditUtilization": 100,
+        "accountAge": 40,
+        "creditMix": 70,
+        "recentActivity": 100
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0.15
     }
   },
   "transactions": {
@@ -450,6 +595,94 @@
         "txHash": "0xa60e321174e6c0357b5f64cef1765c210078f16b03bba447470e7e44ddff49c6",
         "blockNumber": 35841122,
         "explorerUrl": "https://sepolia.basescan.org/tx/0xa60e321174e6c0357b5f64cef1765c210078f16b03bba447470e7e44ddff49c6"
+      }
+    ],
+    "real_final_test": [
+      {
+        "id": "txn_1767451435545_pscmwgfo5",
+        "agentId": "real_final_test",
+        "type": "payment",
+        "amount": 0.005,
+        "timestamp": 1767451435545,
+        "status": "completed",
+        "txHash": "0x14cac8e925e366d7842f18f47ac7641aa1b92a66fcf2b3ff14c4a3c55b6690f4",
+        "blockNumber": 35841574,
+        "explorerUrl": "https://sepolia.basescan.org/tx/0x14cac8e925e366d7842f18f47ac7641aa1b92a66fcf2b3ff14c4a3c55b6690f4"
+      }
+    ],
+    "0xcF1A4587a4470634fc950270cab298B79b258eDe": [
+      {
+        "id": "txn_1767470704797_8cnswjyi1",
+        "agentId": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+        "type": "payment",
+        "amount": 0.005,
+        "timestamp": 1767470704797,
+        "status": "completed",
+        "txHash": "0x8f0339166b0404e61c68e8d3dea35cdcaf494257d0d8638d8d4ef09ae9e83140",
+        "blockNumber": 35851209,
+        "explorerUrl": "https://sepolia.basescan.org/tx/0x8f0339166b0404e61c68e8d3dea35cdcaf494257d0d8638d8d4ef09ae9e83140"
+      },
+      {
+        "id": "txn_1767479572109_1y76rycv9",
+        "agentId": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+        "type": "payment",
+        "amount": 1,
+        "timestamp": 1767479572109,
+        "status": "completed"
+      },
+      {
+        "id": "txn_1767479591549_r9439meks",
+        "agentId": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+        "type": "payment",
+        "amount": 1,
+        "timestamp": 1767479591550,
+        "status": "completed"
+      }
+    ],
+    "flow-agent-1767470798736": [
+      {
+        "id": "txn_1767470804718_wd0sjhsjl",
+        "agentId": "flow-agent-1767470798736",
+        "type": "payment",
+        "amount": 0.005,
+        "timestamp": 1767470804718,
+        "status": "completed",
+        "txHash": "0x7d6487abaeac384c8524d8aff0530fb8e63c8fdc05168da5a0f32310322b2a00",
+        "blockNumber": 35851258,
+        "explorerUrl": "https://sepolia.basescan.org/tx/0x7d6487abaeac384c8524d8aff0530fb8e63c8fdc05168da5a0f32310322b2a00"
+      }
+    ],
+    "test_agent_real_mode": [
+      {
+        "id": "txn_1767481201681_xm83ts0a2",
+        "agentId": "test_agent_real_mode",
+        "type": "credit_used",
+        "amount": 0.0000025899999999999998,
+        "timestamp": 1767481201681,
+        "intentId": "llm_3ZwElvnYH5beFX8oTjvQL",
+        "status": "pending"
+      },
+      {
+        "id": "txn_1767481214862_8xdyjuwvd",
+        "agentId": "test_agent_real_mode",
+        "type": "credit_used",
+        "amount": 0.0000024,
+        "timestamp": 1767481214862,
+        "intentId": "llm_khcHIrFJYWfUybEfVR8wq",
+        "status": "pending"
+      }
+    ],
+    "test_real_payment_agent": [
+      {
+        "id": "txn_1767481410692_lkdd3mxo4",
+        "agentId": "test_real_payment_agent",
+        "type": "payment",
+        "amount": 0.005,
+        "timestamp": 1767481410692,
+        "status": "completed",
+        "txHash": "0xaca73e4c997b0fefb5d9baa01cf57e939cbb267686aefab4512579d92938bd1b",
+        "blockNumber": 35856562,
+        "explorerUrl": "https://sepolia.basescan.org/tx/0xaca73e4c997b0fefb5d9baa01cf57e939cbb267686aefab4512579d92938bd1b"
       }
     ]
   }

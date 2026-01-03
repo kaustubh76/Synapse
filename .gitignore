@@ -48,3 +48,5 @@ coverage/
 data/*.json
 data/*.db
 !data/.gitkeep
+.vercel
+.env*.local
