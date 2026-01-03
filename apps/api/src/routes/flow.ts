@@ -27,15 +27,16 @@ import {
 
 const router = Router();
 
-// EigenCloud wallet configuration
-const EIGENCLOUD_PRIVATE_KEY = process.env.EIGENCLOUD_PRIVATE_KEY || '';
-const EIGENCLOUD_WALLET_ADDRESS = process.env.EIGENCLOUD_WALLET_ADDRESS || '0xcF1A4587a4470634fc950270cab298B79b258eDe';
+// EigenCloud wallet configuration - use functions to read at runtime
+// This ensures dotenv has loaded before we read the values
+const getEigencloudPrivateKey = () => process.env.EIGENCLOUD_PRIVATE_KEY || '';
+const getEigencloudWalletAddress = () => process.env.EIGENCLOUD_WALLET_ADDRESS || '0xcF1A4587a4470634fc950270cab298B79b258eDe';
 
 // Platform wallet for payments
-const PLATFORM_WALLET = process.env.PLATFORM_WALLET || process.env.SYNAPSE_PLATFORM_WALLET || '0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21';
+const getPlatformWallet = () => process.env.PLATFORM_WALLET || process.env.SYNAPSE_PLATFORM_WALLET || '0x742d35Cc6634C0532925a3b844Bc9e7595f5bE21';
 
 // Enable real transfers (default to true when EIGENCLOUD_PRIVATE_KEY is set)
-const USE_REAL_TRANSFERS = process.env.USE_REAL_TRANSFERS !== 'false' && !!EIGENCLOUD_PRIVATE_KEY;
+const useRealTransfers = () => process.env.USE_REAL_TRANSFERS !== 'false' && !!getEigencloudPrivateKey();
 
 // Flow session storage
 const flowSessions = new Map<string, FlowSession>();
@@ -73,7 +74,8 @@ async function executeUSDCPayment(
   reason: string
 ): Promise<{ txHash: string; blockNumber?: number; isReal: boolean; explorerUrl?: string }> {
   // REQUIRE real wallet configuration - no simulations
-  if (!EIGENCLOUD_PRIVATE_KEY) {
+  const privateKey = getEigencloudPrivateKey();
+  if (!privateKey) {
     throw new Error('EIGENCLOUD_PRIVATE_KEY not configured. Real payments require wallet setup.');
   }
 
@@ -81,9 +83,9 @@ async function executeUSDCPayment(
   console.log(`[Flow] Executing real USDC transfer: ${amount} USDC - ${reason}`);
 
   const result = await usdcTransfer.transferWithPrivateKey(
-    EIGENCLOUD_PRIVATE_KEY,
+    privateKey,
     {
-      recipient: PLATFORM_WALLET,
+      recipient: getPlatformWallet(),
       amount,
       reason,
     }
@@ -128,7 +130,7 @@ router.post('/start', async (req: Request, res: Response) => {
     // Create bilateral session
     const bilateralSession = bilateralManager.createSession(
       { id: identity.clientId, address: identity.address },
-      { id: 'synapse-platform', address: PLATFORM_WALLET }
+      { id: 'synapse-platform', address: getPlatformWallet() }
     );
 
     // Create flow session
@@ -279,7 +281,7 @@ router.post('/:flowId/select', async (req: Request, res: Response) => {
 
       const verificationResult = await verifier.verifyPayment(paymentTxHash, {
         amount: selectionCost,
-        recipient: PLATFORM_WALLET,
+        recipient: getPlatformWallet(),
         sender: flowSession.agentAddress,
         tolerance: 0.01, // 1% tolerance
       });
@@ -402,7 +404,7 @@ router.post('/:flowId/tool', async (req: Request, res: Response) => {
 
       const verificationResult = await verifier.verifyPayment(paymentTxHash, {
         amount: toolCost,
-        recipient: PLATFORM_WALLET,
+        recipient: getPlatformWallet(),
         sender: flowSession.agentAddress,
         tolerance: 0.01, // 1% tolerance
       });
@@ -492,7 +494,7 @@ router.post('/:flowId/settle', async (req: Request, res: Response) => {
 
     // ALWAYS use platform wallet for settlements (it has ETH for gas + USDC)
     // Agent wallets are dynamically created without ETH, so they can't pay gas fees
-    const privateKey = EIGENCLOUD_PRIVATE_KEY;
+    const privateKey = getEigencloudPrivateKey();
 
     if (!privateKey) {
       return res.status(400).json({
@@ -609,7 +611,7 @@ router.post('/execute', async (req: Request, res: Response) => {
     // Step 2: Create bilateral session
     const bilateralSession = bilateralManager.createSession(
       { id: identity.clientId, address: identity.address },
-      { id: 'synapse-platform', address: PLATFORM_WALLET }
+      { id: 'synapse-platform', address: getPlatformWallet() }
     );
 
     // Step 3: Execute LLM comparison
@@ -712,8 +714,8 @@ router.post('/execute', async (req: Request, res: Response) => {
         agentId: identity.clientId,
         agentAddress: identity.address,
         bilateralSessionId: bilateralSession.sessionId,
-        eigencloudWallet: EIGENCLOUD_WALLET_ADDRESS,
-        useRealTransfers: USE_REAL_TRANSFERS,
+        eigencloudWallet: getEigencloudWalletAddress(),
+        useRealTransfers: useRealTransfers(),
         llm: {
           intentId,
           modelId: bestResult.modelId,
