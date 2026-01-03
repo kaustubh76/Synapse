@@ -42,6 +42,8 @@ const PORT = process.env.PORT || 3001;
 const ALLOWED_ORIGINS = [
   'http://localhost:3000',
   'http://localhost:3002',
+  'https://synapse-web-gold.vercel.app',
+  'https://synapse-web.vercel.app',
   process.env.WEB_URL,
   process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined,
 ].filter(Boolean) as string[];
