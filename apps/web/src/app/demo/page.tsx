@@ -3,14 +3,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Brain, Zap, DollarSign, Clock, Award, TrendingUp, Sparkles, Shield,
-  Wifi, Home, Coins, Wallet, RefreshCw, ExternalLink, Check,
-  Copy, AlertCircle, Trophy, Users, Timer, CheckCircle2, Loader2,
-  Target, Scale, Plug, ArrowRight, Play, Receipt, ChevronDown, ChevronUp,
+  Brain, Zap, DollarSign, Shield,
+  Coins, Wallet, RefreshCw, ExternalLink, Check,
+  Copy, AlertCircle, Trophy, Users, CheckCircle2, Loader2,
+  Plug, ArrowRight, Play, Receipt, ChevronDown, ChevronUp,
   Wrench, Bot, CreditCard
 } from 'lucide-react'
 import Link from 'next/link'
-import { API_URL, RPC_URL, USDC_ADDRESS, NETWORK } from '@/lib/config'
+import { API_URL, RPC_URL, USDC_ADDRESS } from '@/lib/config'
+import { PageHeader } from '@/components/PageHeader'
+import { fadeInUp } from '@/lib/animations'
 
 // Platform wallet that actually executes payments (has ETH + USDC)
 const PLATFORM_WALLET = '0xcF1A4587a4470634fc950270cab298B79b258eDe'
@@ -69,6 +71,14 @@ interface SessionTransaction {
   timestamp: number
 }
 
+interface SettlementResult {
+  txHash: string
+  blockNumber: number
+  explorerUrl: string
+  netAmount: number
+  direction: string
+}
+
 interface FlowSession {
   sessionId: string
   agentId: string
@@ -76,6 +86,7 @@ interface FlowSession {
   transactions: SessionTransaction[]
   totalSpent: number
   status: 'active' | 'settled'
+  settlementResult?: SettlementResult
 }
 
 type DemoStep = 'identity' | 'prompt' | 'bidding' | 'selection' | 'tools' | 'summary'
@@ -503,30 +514,116 @@ export default function DemoPage() {
   }
 
 
-  // Step 5: Settle Session
+  // Step 5: Settle Session with proper logging and response handling
   const settleSession = async () => {
     if (!session) return
 
     setIsSettling(true)
     setError(null)
 
-    try {
-      const response = await fetch(`${API_URL}/api/mcp/bilateral/${session.sessionId}/settle`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      })
+    const MAX_RETRIES = 3
+    const TIMEOUT_MS = 60000 // 60 seconds for blockchain transactions
+    const RETRY_DELAY_MS = 2000 // 2 seconds between retries
 
-      const data = await response.json()
+    // Helper to delay execution
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
-      if (data.success) {
-        setSession(prev => prev ? { ...prev, status: 'settled' } : null)
-      } else {
-        setError(data.error?.message || 'Failed to settle session')
+    // Helper to check if error is retryable (network errors)
+    const isRetryableError = (err: unknown): boolean => {
+      if (err instanceof TypeError && err.message.includes('Failed to fetch')) return true
+      if (err instanceof Error) {
+        const msg = err.message.toLowerCase()
+        return msg.includes('network') || msg.includes('timeout') || msg.includes('aborted') ||
+               msg.includes('connection') || msg.includes('err_network')
       }
-    } catch (err) {
-      setError('Failed to settle session')
-    } finally {
-      setIsSettling(false)
+      return false
+    }
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      const controller = new AbortController()
+      const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+      try {
+        console.log(`[Settlement] Attempt ${attempt}/${MAX_RETRIES} - Initiating settlement for session ${session.sessionId}`)
+
+        const response = await fetch(`${API_URL}/api/mcp/bilateral/${session.sessionId}/settle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
+        })
+
+        clearTimeout(timeoutId)
+
+        // Check HTTP status first
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error?.message || `HTTP ${response.status}: Settlement failed`)
+        }
+
+        const data = await response.json()
+        console.log('[Settlement] Response:', data)
+
+        if (data.success) {
+          const result = data.data
+          console.log(`[Settlement] SUCCESS!`)
+          console.log(`[Settlement]   TX Hash: ${result.transactionHash}`)
+          console.log(`[Settlement]   Block: ${result.blockNumber}`)
+          console.log(`[Settlement]   Amount: $${result.netAmount} USDC`)
+          console.log(`[Settlement]   Direction: ${result.direction}`)
+          console.log(`[Settlement]   Explorer: ${result.explorerUrl}`)
+
+          // Store settlement result in session state
+          setSession(prev => prev ? {
+            ...prev,
+            status: 'settled',
+            settlementResult: {
+              txHash: result.transactionHash,
+              blockNumber: result.blockNumber,
+              explorerUrl: result.explorerUrl,
+              netAmount: result.netAmount,
+              direction: result.direction
+            }
+          } : null)
+
+          // Success - exit the retry loop
+          setIsSettling(false)
+          return
+        } else {
+          throw new Error(data.error?.message || 'Settlement failed')
+        }
+      } catch (err) {
+        clearTimeout(timeoutId)
+        console.error(`[Settlement] Attempt ${attempt} failed:`, err)
+
+        // Determine error type for user-friendly message
+        let errorMessage: string
+        if (err instanceof Error && err.name === 'AbortError') {
+          errorMessage = 'Settlement request timed out (60s). The blockchain may be congested.'
+        } else if (err instanceof TypeError && err.message.includes('Failed to fetch')) {
+          errorMessage = 'Network connection lost. Please check your internet connection.'
+        } else if (err instanceof Error) {
+          errorMessage = err.message
+        } else {
+          errorMessage = 'Failed to settle session'
+        }
+
+        // If this is a retryable error and we have attempts left, retry
+        if (isRetryableError(err) && attempt < MAX_RETRIES) {
+          console.log(`[Settlement] Retryable error detected. Waiting ${RETRY_DELAY_MS}ms before retry...`)
+          setError(`Network error. Retrying... (${attempt}/${MAX_RETRIES})`)
+          await delay(RETRY_DELAY_MS)
+          continue
+        }
+
+        // No more retries or non-retryable error
+        if (attempt === MAX_RETRIES && isRetryableError(err)) {
+          errorMessage = `Settlement failed after ${MAX_RETRIES} attempts. Please check your connection and try again.`
+        }
+
+        setError(errorMessage)
+        setIsSettling(false)
+        return
+      }
     }
   }
 
@@ -547,67 +644,49 @@ export default function DemoPage() {
   // Get badge for model
   const getBadge = (modelId: string, comparison: LLMIntent['comparison']) => {
     const badges = []
-    if (modelId === comparison.recommended) badges.push({ label: 'Recommended', color: 'bg-purple-500/20 text-purple-400' })
-    if (modelId === comparison.cheapest) badges.push({ label: 'Cheapest', color: 'bg-green-500/20 text-green-400' })
-    if (modelId === comparison.fastest) badges.push({ label: 'Fastest', color: 'bg-blue-500/20 text-blue-400' })
+    if (modelId === comparison.recommended) badges.push({ label: 'Recommended', color: 'badge badge-accent' })
+    if (modelId === comparison.cheapest) badges.push({ label: 'Cheapest', color: 'badge badge-success' })
+    if (modelId === comparison.fastest) badges.push({ label: 'Fastest', color: 'badge badge-info' })
     return badges
   }
 
   if (!isClient) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+      <div className="page-container flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950">
+    <div className="page-container">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <Zap className="w-8 h-8 text-yellow-400" />
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-yellow-400 to-orange-400 bg-clip-text text-transparent">SYNAPSE DEMO</h1>
-                <p className="text-xs text-gray-500">Full End-to-End Flow</p>
-              </div>
-            </Link>
-            <div className="flex items-center gap-4">
-              {identity && walletBalance && (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-900/30 border border-green-500/30">
-                  <DollarSign className="w-4 h-4 text-green-400" />
-                  <span className="text-sm font-bold text-green-400">{walletBalance.usdc} USDC</span>
-                </div>
-              )}
-              <Link
-                href="/"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-sm"
-              >
-                <Home className="w-4 h-4" />
-                <span className="hidden sm:inline">Home</span>
-              </Link>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400">
-                <Wifi className="w-4 h-4" />
-                <span className="hidden sm:inline">Live</span>
-              </div>
+      <PageHeader
+        title="Synapse Demo"
+        subtitle="Full End-to-End Flow"
+        icon={<Zap className="w-6 h-6" />}
+        rightContent={
+          identity && walletBalance ? (
+            <div className="badge badge-success">
+              <DollarSign className="w-4 h-4 mr-1" />
+              {walletBalance.usdc} USDC
             </div>
-          </div>
-        </div>
-      </header>
+          ) : null
+        }
+      />
 
-      <main className="max-w-5xl mx-auto px-4 py-8">
+      <main className="page-content max-w-5xl">
         {/* Hero */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          variants={fadeInUp}
+          initial="initial"
+          animate="animate"
           className="text-center mb-8"
         >
-          <h1 className="text-4xl font-bold bg-gradient-to-r from-yellow-400 via-orange-400 to-red-400 bg-clip-text text-transparent mb-2">
+          <h1 className="text-4xl font-bold gradient-text mb-2">
             LLM + Intent + x402 + MCP
           </h1>
-          <p className="text-gray-400">Complete end-to-end flow with real payments on Base Sepolia</p>
+          <p className="text-dark-400">Complete end-to-end flow with real payments on Base Sepolia</p>
         </motion.div>
 
         {/* Progress Steps */}
@@ -636,14 +715,14 @@ export default function DemoPage() {
             return (
               <div key={step} className="flex items-center">
                 <div className={`flex items-center gap-2 px-3 py-1.5 rounded-lg transition-colors ${
-                  isActive ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30' :
-                  isPast ? 'bg-green-500/20 text-green-400 border border-green-500/30' :
-                  'bg-gray-800 text-gray-500 border border-gray-700'
+                  isActive ? 'bg-accent-500/20 text-accent-400 border border-accent-500/30' :
+                  isPast ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' :
+                  'bg-dark-800 text-dark-500 border border-dark-700'
                 }`}>
                   {isPast ? <CheckCircle2 className="w-4 h-4" /> : <Icon className="w-4 h-4" />}
                   <span className="text-xs font-medium hidden sm:inline">{stepLabels[step]}</span>
                 </div>
-                {idx < 5 && <ArrowRight className="w-4 h-4 text-gray-600 mx-1" />}
+                {idx < 5 && <ArrowRight className="w-4 h-4 text-dark-600 mx-1" />}
               </div>
             )
           })}
@@ -656,11 +735,11 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mb-6 flex items-center gap-2 px-4 py-3 rounded-lg bg-red-900/30 border border-red-500/30 text-red-400"
+              className="mb-6 flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400"
             >
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
-              <button onClick={() => setError(null)} className="ml-auto text-red-300 hover:text-red-200">Dismiss</button>
+              <button onClick={() => setError(null)} className="ml-auto btn-ghost text-red-300 hover:text-red-200 px-2 py-1">Dismiss</button>
             </motion.div>
           )}
         </AnimatePresence>
@@ -674,25 +753,25 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800"
+              className="card p-8"
             >
               <div className="text-center">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center">
-                  <Shield className="w-10 h-10 text-purple-400" />
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-gradient-to-br from-accent-500/20 to-cyan-500/20 flex items-center justify-center">
+                  <Shield className="w-10 h-10 text-accent-400" />
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">Step 1: Create Agent Identity</h2>
-                <p className="text-gray-400 mb-6 max-w-md mx-auto">
+                <p className="text-dark-400 mb-6 max-w-md mx-auto">
                   Generate a cryptographic wallet identity for your agent. This wallet will hold USDC for payments.
                 </p>
 
                 {/* Faucet Link */}
-                <div className="bg-blue-900/20 border border-blue-500/30 rounded-lg p-4 mb-6 max-w-md mx-auto">
-                  <p className="text-sm text-blue-400 mb-2">Need testnet USDC?</p>
+                <div className="glass-accent rounded-lg p-4 mb-6 max-w-md mx-auto">
+                  <p className="text-sm text-accent-400 mb-2">Need testnet USDC?</p>
                   <a
                     href="https://faucet.circle.com/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 text-blue-300 hover:text-blue-200"
+                    className="flex items-center justify-center gap-2 text-accent-300 hover:text-accent-200"
                   >
                     <CreditCard className="w-4 h-4" />
                     Get Base Sepolia USDC from Circle Faucet
@@ -703,7 +782,7 @@ export default function DemoPage() {
                 <button
                   onClick={createIdentity}
                   disabled={isCreatingIdentity}
-                  className="px-8 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white font-semibold text-lg transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50"
+                  className="btn-glow px-8 py-4 text-lg glow disabled:opacity-50"
                 >
                   {isCreatingIdentity ? (
                     <span className="flex items-center gap-2">
@@ -731,18 +810,18 @@ export default function DemoPage() {
               className="space-y-6"
             >
               {/* Identity Card */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-full bg-purple-500/20 flex items-center justify-center">
-                      <Bot className="w-5 h-5 text-purple-400" />
+                    <div className="w-10 h-10 rounded-full bg-accent-500/20 flex items-center justify-center">
+                      <Bot className="w-5 h-5 text-accent-400" />
                     </div>
                     <div>
-                      <div className="text-sm text-gray-400">Agent Wallet</div>
+                      <div className="text-sm text-dark-400">Agent Wallet</div>
                       <div className="flex items-center gap-2">
                         <span className="font-mono text-white">{identity.address.slice(0, 10)}...{identity.address.slice(-8)}</span>
-                        <button onClick={copyAddress} className="p-1 hover:bg-gray-700 rounded">
-                          {copied ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                        <button onClick={copyAddress} className="p-1 hover:bg-dark-700 rounded">
+                          {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-dark-400" />}
                         </button>
                       </div>
                     </div>
@@ -750,11 +829,11 @@ export default function DemoPage() {
                   {walletBalance && (
                     <div className="flex items-center gap-4">
                       <div className="text-right">
-                        <div className="text-xs text-gray-400">Platform Credits</div>
-                        <div className="text-xl font-bold text-green-400">${walletBalance.usdc} USDC</div>
+                        <div className="text-xs text-dark-400">Platform Credits</div>
+                        <div className="text-xl font-bold text-emerald-400">${walletBalance.usdc} USDC</div>
                       </div>
-                      <button onClick={() => fetchBalance(PLATFORM_WALLET)} className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700" title="Refresh platform wallet balance">
-                        <RefreshCw className="w-4 h-4 text-gray-400" />
+                      <button onClick={() => fetchBalance(PLATFORM_WALLET)} className="p-2 rounded-lg bg-dark-800 hover:bg-dark-700" title="Refresh platform wallet balance">
+                        <RefreshCw className="w-4 h-4 text-dark-400" />
                       </button>
                     </div>
                   )}
@@ -762,24 +841,24 @@ export default function DemoPage() {
               </div>
 
               {/* Prompt Input */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <h2 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
-                  <Brain className="w-5 h-5 text-purple-400" />
+                  <Brain className="w-5 h-5 text-accent-400" />
                   Step 2: Enter Your Prompt
                 </h2>
-                <p className="text-gray-400 mb-4">
+                <p className="text-dark-400 mb-4">
                   LLMs will compete to answer your question. Try asking about weather or crypto prices to trigger MCP tools!
                 </p>
                 <textarea
                   value={prompt}
                   onChange={(e) => setPrompt(e.target.value)}
                   placeholder="e.g., What's the weather like in New York today?"
-                  className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 min-h-[100px] resize-none mb-4"
+                  className="input min-h-[100px] resize-none mb-4"
                 />
                 <button
                   onClick={submitPrompt}
                   disabled={!prompt.trim() || isSubmitting}
-                  className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white font-semibold text-lg transition-all disabled:opacity-50"
+                  className="btn-glow w-full flex items-center justify-center gap-2 py-4 text-lg disabled:opacity-50"
                 >
                   {isSubmitting ? (
                     <>
@@ -804,14 +883,14 @@ export default function DemoPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800 text-center"
+              className="card p-8 text-center"
             >
               <div className="relative w-24 h-24 mx-auto mb-6">
-                <div className="w-24 h-24 border-4 border-purple-500/30 rounded-full animate-spin border-t-purple-500" />
-                <Users className="w-10 h-10 text-purple-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                <div className="w-24 h-24 border-4 border-accent-500/30 rounded-full animate-spin border-t-accent-500" />
+                <Users className="w-10 h-10 text-accent-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
               </div>
               <h2 className="text-2xl font-bold text-white mb-2">LLMs are Competing</h2>
-              <p className="text-gray-400">Multiple AI models are generating responses...</p>
+              <p className="text-dark-400">Multiple AI models are generating responses...</p>
             </motion.div>
           )}
 
@@ -824,15 +903,15 @@ export default function DemoPage() {
               exit={{ opacity: 0, y: -20 }}
               className="space-y-6"
             >
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <h2 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
-                  <Trophy className="w-5 h-5 text-yellow-400" />
+                  <Trophy className="w-5 h-5 text-amber-400" />
                   {llmIntent.bids.length} Models Competed
                 </h2>
-                <p className="text-gray-400 mb-4">Select your preferred response. Payment: $0.005 USDC</p>
+                <p className="text-dark-400 mb-4">Select your preferred response. Payment: $0.005 USDC</p>
 
-                <div className="bg-gray-800/50 rounded-lg p-3 mb-4">
-                  <div className="text-xs text-gray-500 mb-1">Your Prompt</div>
+                <div className="bg-dark-800/50 rounded-lg p-3 mb-4">
+                  <div className="text-xs text-dark-500 mb-1">Your Prompt</div>
                   <div className="text-white">{prompt}</div>
                 </div>
               </div>
@@ -849,51 +928,51 @@ export default function DemoPage() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.1 }}
-                      className={`bg-gray-900/50 rounded-2xl p-6 border transition-all ${
-                        isSelected ? 'border-green-500/50 shadow-lg shadow-green-500/20' :
-                        bid.rank === 1 ? 'border-purple-500/30' : 'border-gray-800 hover:border-gray-700'
+                      className={`card p-6 ${
+                        isSelected ? 'border-emerald-500/50 shadow-lg shadow-emerald-500/20' :
+                        bid.rank === 1 ? 'border-accent-500/30' : ''
                       }`}
                     >
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                            bid.rank === 1 ? 'bg-purple-500/20' : 'bg-gray-800'
+                            bid.rank === 1 ? 'bg-accent-500/20' : 'bg-dark-800'
                           }`}>
-                            {bid.rank === 1 ? <Trophy className="w-5 h-5 text-purple-400" /> :
-                              <span className="text-gray-400 font-bold">#{bid.rank}</span>}
+                            {bid.rank === 1 ? <Trophy className="w-5 h-5 text-accent-400" /> :
+                              <span className="text-dark-400 font-bold">#{bid.rank}</span>}
                           </div>
                           <div>
                             <h4 className="text-lg font-bold text-white">{bid.modelId}</h4>
-                            <div className="text-sm text-gray-500">{bid.provider}</div>
+                            <div className="text-sm text-dark-500">{bid.provider}</div>
                           </div>
                         </div>
                         <div className="flex gap-1">
                           {badges.map((b, i) => (
-                            <span key={i} className={`px-2 py-0.5 rounded text-xs ${b.color}`}>{b.label}</span>
+                            <span key={i} className={b.color}>{b.label}</span>
                           ))}
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-gray-800/50 rounded-lg">
+                      <div className="grid grid-cols-3 gap-4 mb-4 p-3 bg-dark-800/50 rounded-lg">
                         <div>
-                          <div className="text-xs text-gray-400">Score</div>
-                          <div className="text-lg font-bold text-purple-400">{bid.calculatedScore}/100</div>
+                          <div className="text-xs text-dark-400">Score</div>
+                          <div className="text-lg font-bold text-accent-400">{bid.calculatedScore}/100</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400">Latency</div>
-                          <div className="text-lg font-bold text-blue-400">{bid.latency.toFixed(0)}ms</div>
+                          <div className="text-xs text-dark-400">Latency</div>
+                          <div className="text-lg font-bold text-cyan-400">{bid.latency.toFixed(0)}ms</div>
                         </div>
                         <div>
-                          <div className="text-xs text-gray-400">Quality</div>
-                          <div className="text-lg font-bold text-yellow-400">{bid.qualityScore.toFixed(1)}/10</div>
+                          <div className="text-xs text-dark-400">Quality</div>
+                          <div className="text-lg font-bold text-amber-400">{bid.qualityScore.toFixed(1)}/10</div>
                         </div>
                       </div>
 
-                      <div className="bg-gray-800/30 rounded-lg p-4 mb-4 max-h-32 overflow-y-auto">
-                        <div className="text-sm text-gray-300 whitespace-pre-wrap">
+                      <div className="bg-dark-800/30 rounded-lg p-4 mb-4 max-h-32 overflow-y-auto">
+                        <div className="text-sm text-dark-300 whitespace-pre-wrap">
                           {bid.response && bid.response.trim().length > 0
                             ? bid.response
-                            : <span className="text-gray-500 italic">No response content available</span>
+                            : <span className="text-dark-500 italic">No response content available</span>
                           }
                         </div>
                       </div>
@@ -902,10 +981,10 @@ export default function DemoPage() {
                         onClick={() => selectModel(bid)}
                         disabled={isSelecting}
                         className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl font-semibold transition-all ${
-                          isSelecting && isSelected ? 'bg-purple-600/50 text-white' :
-                          isSelecting ? 'bg-gray-700 text-gray-400 cursor-not-allowed' :
-                          bid.rank === 1 ? 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white' :
-                          'bg-gray-800 text-white hover:bg-gray-700'
+                          isSelecting && isSelected ? 'bg-accent-600/50 text-white' :
+                          isSelecting ? 'bg-dark-700 text-dark-400 cursor-not-allowed' :
+                          bid.rank === 1 ? 'btn-glow' :
+                          'btn-secondary'
                         }`}
                       >
                         {isSelecting && isSelected ? (
@@ -934,20 +1013,20 @@ export default function DemoPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800"
+              className="card p-8"
             >
               <div className="text-center mb-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-orange-500/20 flex items-center justify-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-cyan-500/20 flex items-center justify-center">
                   {isExecutingTools ? (
-                    <Loader2 className="w-10 h-10 text-orange-400 animate-spin" />
+                    <Loader2 className="w-10 h-10 text-cyan-400 animate-spin" />
                   ) : (
-                    <Wrench className="w-10 h-10 text-orange-400" />
+                    <Wrench className="w-10 h-10 text-cyan-400" />
                   )}
                 </div>
                 <h2 className="text-2xl font-bold text-white mb-2">
                   {isExecutingTools ? 'Executing MCP Tools...' : 'Tools Executed'}
                 </h2>
-                <p className="text-gray-400">
+                <p className="text-dark-400">
                   The LLM detected tool calls in its response and triggered MCP tools automatically
                 </p>
               </div>
@@ -955,15 +1034,15 @@ export default function DemoPage() {
               {toolResults.length > 0 && (
                 <div className="space-y-4">
                   {toolResults.map((result, idx) => (
-                    <div key={idx} className="bg-gray-800/50 rounded-xl p-4">
+                    <div key={idx} className="bg-dark-800/50 rounded-xl p-4">
                       <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
-                          <Plug className="w-5 h-5 text-orange-400" />
+                          <Plug className="w-5 h-5 text-cyan-400" />
                           <span className="font-bold text-white">{result.toolName}</span>
                         </div>
-                        <span className="text-green-400 font-mono text-sm">${result.cost.toFixed(4)} USDC</span>
+                        <span className="text-emerald-400 font-mono text-sm">${result.cost.toFixed(4)} USDC</span>
                       </div>
-                      <pre className="bg-gray-900/50 rounded-lg p-3 text-sm text-gray-300 overflow-x-auto">
+                      <pre className="bg-dark-900/50 rounded-lg p-3 text-sm text-dark-300 overflow-x-auto">
                         {JSON.stringify(result.output, null, 2)}
                       </pre>
                     </div>
@@ -983,31 +1062,31 @@ export default function DemoPage() {
               className="space-y-6"
             >
               {/* Success Banner */}
-              <div className="bg-green-900/20 border border-green-500/30 rounded-2xl p-6 text-center">
-                <CheckCircle2 className="w-12 h-12 text-green-400 mx-auto mb-3" />
-                <h2 className="text-2xl font-bold text-green-400 mb-2">Flow Complete!</h2>
-                <p className="text-gray-400">LLM response received{toolResults.length > 0 ? ' with tool augmentation' : ''}</p>
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6 text-center">
+                <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto mb-3" />
+                <h2 className="text-2xl font-bold text-emerald-400 mb-2">Flow Complete!</h2>
+                <p className="text-dark-400">LLM response received{toolResults.length > 0 ? ' with tool augmentation' : ''}</p>
               </div>
 
               {/* Selected Response */}
               {selectedBid && (
-                <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+                <div className="card p-6">
                   <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
-                    <Brain className="w-5 h-5 text-purple-400" />
+                    <Brain className="w-5 h-5 text-accent-400" />
                     Selected Response: {selectedBid.modelId}
                   </h3>
-                  <div className="bg-gray-800/50 rounded-lg p-4 text-gray-300">
+                  <div className="bg-dark-800/50 rounded-lg p-4 text-dark-300">
                     {selectedBid.response}
                   </div>
                   {toolResults.length > 0 && (
-                    <div className="mt-4 pt-4 border-t border-gray-700">
-                      <h4 className="text-sm font-bold text-orange-400 mb-2 flex items-center gap-2">
+                    <div className="mt-4 pt-4 border-t border-dark-700">
+                      <h4 className="text-sm font-bold text-cyan-400 mb-2 flex items-center gap-2">
                         <Plug className="w-4 h-4" />
                         Tool Results:
                       </h4>
                       {toolResults.map((result, idx) => (
-                        <div key={idx} className="bg-gray-800/30 rounded-lg p-3 text-sm">
-                          <span className="text-gray-400">{result.toolName}: </span>
+                        <div key={idx} className="bg-dark-800/30 rounded-lg p-3 text-sm">
+                          <span className="text-dark-400">{result.toolName}: </span>
                           <span className="text-white">{JSON.stringify(result.output)}</span>
                         </div>
                       ))}
@@ -1017,30 +1096,30 @@ export default function DemoPage() {
               )}
 
               {/* Session Summary */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <button
                   onClick={() => setShowTransactions(!showTransactions)}
                   className="w-full flex items-center justify-between mb-4"
                 >
                   <h3 className="text-lg font-bold text-white flex items-center gap-2">
-                    <Receipt className="w-5 h-5 text-gray-400" />
+                    <Receipt className="w-5 h-5 text-dark-400" />
                     Session Transactions ({session.transactions.length})
                   </h3>
-                  {showTransactions ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                  {showTransactions ? <ChevronUp className="w-5 h-5 text-dark-400" /> : <ChevronDown className="w-5 h-5 text-dark-400" />}
                 </button>
 
                 {showTransactions && (
                   <div className="space-y-2 mb-4">
                     {session.transactions.map((tx) => (
                       <div key={tx.id} className={`p-3 rounded-lg ${
-                        tx.type === 'llm' ? 'bg-purple-900/20 border border-purple-500/20' : 'bg-orange-900/20 border border-orange-500/20'
+                        tx.type === 'llm' ? 'bg-accent-500/10 border border-accent-500/20' : 'bg-cyan-500/10 border border-cyan-500/20'
                       }`}>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            {tx.type === 'llm' ? <Brain className="w-5 h-5 text-purple-400" /> : <Plug className="w-5 h-5 text-orange-400" />}
+                            {tx.type === 'llm' ? <Brain className="w-5 h-5 text-accent-400" /> : <Plug className="w-5 h-5 text-cyan-400" />}
                             <span className="text-white">{tx.resource}</span>
                           </div>
-                          <span className={`font-mono ${tx.type === 'llm' ? 'text-purple-400' : 'text-orange-400'}`}>
+                          <span className={`font-mono ${tx.type === 'llm' ? 'text-accent-400' : 'text-cyan-400'}`}>
                             ${tx.amount.toFixed(4)}
                           </span>
                         </div>
@@ -1050,7 +1129,7 @@ export default function DemoPage() {
                               href={`https://sepolia.basescan.org/tx/${tx.txHash}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                              className="text-xs text-accent-400 hover:text-accent-300 flex items-center gap-1"
                             >
                               <ExternalLink className="w-3 h-3" />
                               View on BaseScan: {tx.txHash.slice(0, 10)}...{tx.txHash.slice(-8)}
@@ -1062,16 +1141,16 @@ export default function DemoPage() {
                   </div>
                 )}
 
-                <div className="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg mb-4">
-                  <span className="text-gray-400">Total Spent</span>
-                  <span className="text-2xl font-bold text-green-400">${session.totalSpent.toFixed(4)} USDC</span>
+                <div className="flex items-center justify-between p-4 bg-dark-800/50 rounded-lg mb-4">
+                  <span className="text-dark-400">Total Spent</span>
+                  <span className="text-2xl font-bold text-emerald-400">${session.totalSpent.toFixed(4)} USDC</span>
                 </div>
 
                 {session.status === 'active' ? (
                   <button
                     onClick={settleSession}
                     disabled={isSettling}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold transition-all"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold transition-all"
                   >
                     {isSettling ? (
                       <>
@@ -1086,9 +1165,58 @@ export default function DemoPage() {
                     )}
                   </button>
                 ) : (
-                  <div className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-green-500/20 text-green-400 font-semibold">
-                    <CheckCircle2 className="w-5 h-5" />
-                    Session Settled
+                  <div className="space-y-3">
+                    <div className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-emerald-500/20 text-emerald-400 font-semibold">
+                      <CheckCircle2 className="w-5 h-5" />
+                      Session Settled
+                    </div>
+
+                    {/* Settlement Transaction Details */}
+                    {session.settlementResult && (
+                      <div className="p-4 bg-dark-800/50 rounded-lg border border-emerald-500/30 space-y-3">
+                        <h4 className="text-sm font-semibold text-white flex items-center gap-2">
+                          <Receipt className="w-4 h-4 text-emerald-400" />
+                          Settlement Transaction
+                        </h4>
+                        <div className="flex items-center justify-between">
+                          <span className="text-dark-400 text-sm">Amount</span>
+                          <span className="text-emerald-400 font-semibold">
+                            ${session.settlementResult.netAmount?.toFixed(4) || '0.0000'} USDC
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-dark-400 text-sm">Direction</span>
+                          <span className="text-white text-sm">
+                            {session.settlementResult.direction?.replace(/-/g, ' → ') || 'N/A'}
+                          </span>
+                        </div>
+                        {session.settlementResult.blockNumber && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-dark-400 text-sm">Block</span>
+                            <span className="text-white text-sm">#{session.settlementResult.blockNumber}</span>
+                          </div>
+                        )}
+                        {session.settlementResult.txHash && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-dark-400 text-sm">TX Hash</span>
+                            <span className="text-white text-sm font-mono">
+                              {session.settlementResult.txHash.slice(0, 10)}...{session.settlementResult.txHash.slice(-8)}
+                            </span>
+                          </div>
+                        )}
+                        {session.settlementResult.explorerUrl && (
+                          <a
+                            href={session.settlementResult.explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center justify-center gap-2 w-full px-3 py-2 mt-2 rounded-lg bg-accent-600/20 text-accent-400 hover:bg-accent-600/30 transition-colors text-sm"
+                          >
+                            <ExternalLink className="w-4 h-4" />
+                            View Settlement on BaseScan
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -1096,7 +1224,7 @@ export default function DemoPage() {
               {/* New Demo Button */}
               <button
                 onClick={resetDemo}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+                className="btn-secondary w-full flex items-center justify-center gap-2 py-3"
               >
                 <RefreshCw className="w-5 h-5" />
                 Start New Demo

@@ -5,10 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import {
   CreditCard, TrendingUp, Shield, Award, Zap, DollarSign,
   ChevronRight, ArrowUp, ArrowDown, Clock, CheckCircle2,
-  AlertCircle, Loader2, Home, RefreshCw, Wallet, Target,
-  Star, Lock, Unlock, Calculator, Sparkles
+  AlertCircle, Loader2, RefreshCw, Wallet, Target,
+  Star, Lock, Calculator, Sparkles
 } from 'lucide-react'
 import Link from 'next/link'
+import { PageHeader } from '@/components/PageHeader'
 import { API_URL, EIGENCLOUD_WALLET } from '@/lib/config'
 
 interface CreditFactor {
@@ -74,11 +75,11 @@ interface SimulationResult {
 }
 
 const TIER_COLORS: Record<string, { bg: string; text: string; border: string; glow: string }> = {
-  exceptional: { bg: 'from-purple-600 to-pink-600', text: 'text-purple-400', border: 'border-purple-500', glow: 'shadow-purple-500/50' },
-  excellent: { bg: 'from-blue-600 to-cyan-600', text: 'text-blue-400', border: 'border-blue-500', glow: 'shadow-blue-500/50' },
-  good: { bg: 'from-green-600 to-emerald-600', text: 'text-green-400', border: 'border-green-500', glow: 'shadow-green-500/50' },
-  fair: { bg: 'from-yellow-600 to-orange-600', text: 'text-yellow-400', border: 'border-yellow-500', glow: 'shadow-yellow-500/50' },
-  subprime: { bg: 'from-red-600 to-rose-600', text: 'text-red-400', border: 'border-red-500', glow: 'shadow-red-500/50' },
+  exceptional: { bg: 'from-accent-600 to-accent-400', text: 'text-accent-400', border: 'border-accent-500', glow: 'shadow-accent-500/50' },
+  excellent: { bg: 'from-accent-500 to-cyan-500', text: 'text-cyan-400', border: 'border-cyan-500', glow: 'shadow-cyan-500/50' },
+  good: { bg: 'from-emerald-600 to-emerald-400', text: 'text-emerald-400', border: 'border-emerald-500', glow: 'shadow-emerald-500/50' },
+  fair: { bg: 'from-amber-600 to-amber-400', text: 'text-amber-400', border: 'border-amber-500', glow: 'shadow-amber-500/50' },
+  subprime: { bg: 'from-red-600 to-red-400', text: 'text-red-400', border: 'border-red-500', glow: 'shadow-red-500/50' },
 }
 
 const TIER_ORDER = ['subprime', 'fair', 'good', 'excellent', 'exceptional']
@@ -96,6 +97,9 @@ export default function CreditPage() {
   const [isSimulating, setIsSimulating] = useState(false)
   const [isPaying, setIsPaying] = useState(false)
   const [paymentSuccess, setPaymentSuccess] = useState(false)
+
+  // Payment error state
+  const [paymentError, setPaymentError] = useState<string | null>(null)
 
   // Discount calculator
   const [spendAmount, setSpendAmount] = useState<number>(100)
@@ -167,23 +171,41 @@ export default function CreditPage() {
     }
   }
 
-  // Make payment
+  // Make payment with proper timeout and error handling
   const makePayment = async () => {
     if (!agentId || paymentAmount <= 0) return
 
     setIsPaying(true)
     setPaymentSuccess(false)
+    setPaymentError(null)
+
+    // Add timeout with AbortController (30 seconds)
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 30000)
 
     try {
+      console.log(`[Payment] Initiating $${paymentAmount} USDC payment for ${agentId}`)
+
       const response = await fetch(`${API_URL}/api/llm/credit/${agentId}/payment`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ amount: paymentAmount, onTime: true })
+        body: JSON.stringify({ amount: paymentAmount, onTime: true }),
+        signal: controller.signal
       })
 
+      clearTimeout(timeoutId)
+
+      // Check HTTP status first
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error?.message || `HTTP ${response.status}: Payment failed`)
+      }
+
       const data = await response.json()
+      console.log('[Payment] Response:', data)
 
       if (data.success) {
+        console.log(`[Payment] Success! New score: ${data.data?.creditScore}, Tier: ${data.data?.creditTier}`)
         setPaymentSuccess(true)
         setSimulation(null)
         // Reload profile to see updated score
@@ -191,10 +213,23 @@ export default function CreditPage() {
           loadProfile()
           setPaymentSuccess(false)
         }, 2000)
+      } else {
+        throw new Error(data.error?.message || 'Payment failed')
       }
     } catch (err) {
-      console.error('Payment failed:', err)
+      console.error('[Payment] Error:', err)
+
+      if (err instanceof Error) {
+        if (err.name === 'AbortError') {
+          setPaymentError('Payment timed out. Please try again.')
+        } else {
+          setPaymentError(err.message)
+        }
+      } else {
+        setPaymentError('Payment failed. Please try again.')
+      }
     } finally {
+      clearTimeout(timeoutId)
       setIsPaying(false)
     }
   }
@@ -218,10 +253,10 @@ export default function CreditPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="page-container flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="w-12 h-12 text-purple-400 animate-spin mx-auto mb-4" />
-          <p className="text-gray-400">Loading credit profile...</p>
+          <Loader2 className="w-12 h-12 text-accent-400 animate-spin mx-auto mb-4" />
+          <p className="text-dark-400">Loading credit profile...</p>
         </div>
       </div>
     )
@@ -229,13 +264,13 @@ export default function CreditPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="page-container flex items-center justify-center">
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-400 mx-auto mb-4" />
           <p className="text-red-400 mb-4">{error}</p>
           <button
             onClick={loadProfile}
-            className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-500 transition-colors"
+            className="btn-primary"
           >
             Retry
           </button>
@@ -249,47 +284,33 @@ export default function CreditPage() {
   const tierColors = getTierColors(profile.tier)
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950">
+    <div className="page-container">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <CreditCard className="w-8 h-8 text-purple-400" />
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">
-                  Credit Score
-                </h1>
-                <p className="text-xs text-gray-500">Agent Economy Dashboard</p>
-              </div>
+      <PageHeader
+        title="Credit Score"
+        subtitle="Agent Economy Dashboard"
+        icon={<CreditCard className="w-6 h-6" />}
+        rightContent={
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadProfile}
+              className="btn-ghost p-2"
+              title="Refresh"
+            >
+              <RefreshCw className="w-4 h-4" />
+            </button>
+            <Link
+              href="/llm"
+              className="btn-primary text-sm"
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              LLM Marketplace
             </Link>
-            <div className="flex items-center gap-4">
-              <button
-                onClick={loadProfile}
-                className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
-                title="Refresh"
-              >
-                <RefreshCw className="w-4 h-4 text-gray-400" />
-              </button>
-              <Link
-                href="/llm"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-600 text-white hover:bg-purple-500 transition-colors text-sm"
-              >
-                <Zap className="w-4 h-4" />
-                LLM Marketplace
-              </Link>
-              <Link
-                href="/"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-sm"
-              >
-                <Home className="w-4 h-4" />
-              </Link>
-            </div>
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="page-content">
         {/* Score Gauge Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -297,7 +318,7 @@ export default function CreditPage() {
           className="mb-8"
         >
           <div className={`bg-gradient-to-br ${tierColors.bg} p-1 rounded-3xl shadow-2xl ${tierColors.glow}`}>
-            <div className="bg-gray-900 rounded-3xl p-8">
+            <div className="bg-dark-900 rounded-3xl p-8">
               <div className="flex flex-col lg:flex-row items-center gap-8">
                 {/* Gauge */}
                 <div className="relative w-64 h-40">
@@ -325,15 +346,15 @@ export default function CreditPage() {
                         <stop offset="0%" stopColor="#ef4444" />
                         <stop offset="25%" stopColor="#f59e0b" />
                         <stop offset="50%" stopColor="#22c55e" />
-                        <stop offset="75%" stopColor="#3b82f6" />
-                        <stop offset="100%" stopColor="#a855f7" />
+                        <stop offset="75%" stopColor="#22d3ee" />
+                        <stop offset="100%" stopColor="#06b6d4" />
                       </linearGradient>
                     </defs>
                     {/* Score text */}
                     <text x="100" y="85" textAnchor="middle" className="fill-white text-4xl font-bold">
                       {profile.score}
                     </text>
-                    <text x="100" y="105" textAnchor="middle" className="fill-gray-400 text-sm uppercase font-semibold">
+                    <text x="100" y="105" textAnchor="middle" className="fill-dark-400 text-sm uppercase font-semibold">
                       {profile.tier}
                     </text>
                   </svg>
@@ -341,38 +362,38 @@ export default function CreditPage() {
 
                 {/* Stats Cards */}
                 <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-green-400">
+                  <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-emerald-400">
                       {(profile.tierConfig.discount * 100).toFixed(0)}%
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">Discount</div>
+                    <div className="text-xs text-dark-400 mt-1">Discount</div>
                   </div>
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-blue-400">
+                  <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-accent-400">
                       ${profile.tierConfig.creditLimit.toLocaleString()}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">Credit Limit</div>
+                    <div className="text-xs text-dark-400 mt-1">Credit Limit</div>
                   </div>
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-                    <div className="text-3xl font-bold text-purple-400">
+                  <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+                    <div className="text-3xl font-bold text-accent-400">
                       ${profile.balances.availableCredit.toFixed(2)}
                     </div>
-                    <div className="text-xs text-gray-400 mt-1">Available</div>
+                    <div className="text-xs text-dark-400 mt-1">Available</div>
                   </div>
-                  <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+                  <div className="bg-dark-800/50 rounded-xl p-4 text-center">
                     {profile.nextTier ? (
                       <>
-                        <div className="text-3xl font-bold text-yellow-400">
+                        <div className="text-3xl font-bold text-amber-400">
                           +{profile.nextTier.pointsNeeded}
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">To {profile.nextTier.name}</div>
+                        <div className="text-xs text-dark-400 mt-1">To {profile.nextTier.name}</div>
                       </>
                     ) : (
                       <>
-                        <div className="text-3xl font-bold text-purple-400">
+                        <div className="text-3xl font-bold text-accent-400">
                           <Star className="w-8 h-8 mx-auto" />
                         </div>
-                        <div className="text-xs text-gray-400 mt-1">Top Tier!</div>
+                        <div className="text-xs text-dark-400 mt-1">Top Tier!</div>
                       </>
                     )}
                   </div>
@@ -387,10 +408,10 @@ export default function CreditPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="bg-gray-900/50 rounded-2xl p-6 border border-gray-800 mb-8"
+          className="card p-6 mb-8"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-purple-400" />
+            <TrendingUp className="w-5 h-5 text-accent-400" />
             Tier Progression
           </h3>
 
@@ -443,10 +464,10 @@ export default function CreditPage() {
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.2 }}
-            className="bg-gray-900/50 rounded-2xl p-6 border border-gray-800"
+            className="card p-6"
           >
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Target className="w-5 h-5 text-purple-400" />
+              <Target className="w-5 h-5 text-accent-400" />
               Score Factors
             </h3>
 
@@ -502,16 +523,16 @@ export default function CreditPage() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.3 }}
-            className="bg-gray-900/50 rounded-2xl p-6 border border-gray-800"
+            className="card p-6"
           >
             <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-              <Wallet className="w-5 h-5 text-green-400" />
+              <Wallet className="w-5 h-5 text-emerald-400" />
               Make a Payment
             </h3>
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-gray-400 block mb-2">Payment Amount (USDC)</label>
+                <label className="text-sm text-dark-400 block mb-2">Payment Amount (USDC)</label>
                 <div className="flex gap-2">
                   <input
                     type="number"
@@ -521,7 +542,7 @@ export default function CreditPage() {
                       setPaymentAmount(val)
                       if (val > 0) simulatePayment(val)
                     }}
-                    className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-4 py-2 text-white focus:outline-none focus:border-purple-500"
+                    className="input flex-1"
                     min="0"
                     step="1"
                   />
@@ -533,11 +554,7 @@ export default function CreditPage() {
                           setPaymentAmount(amt)
                           simulatePayment(amt)
                         }}
-                        className={`px-3 py-2 rounded-lg text-sm transition-colors ${
-                          paymentAmount === amt
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
+                        className={`tab ${paymentAmount === amt ? 'tab-active' : ''}`}
                       >
                         ${amt}
                       </button>
@@ -553,15 +570,15 @@ export default function CreditPage() {
                     initial={{ opacity: 0, height: 0 }}
                     animate={{ opacity: 1, height: 'auto' }}
                     exit={{ opacity: 0, height: 0 }}
-                    className="bg-gray-800/50 rounded-xl p-4"
+                    className="bg-dark-800/50 rounded-xl p-4"
                   >
                     <div className="flex items-center justify-between mb-3">
-                      <span className="text-gray-400">Score Impact</span>
+                      <span className="text-dark-400">Score Impact</span>
                       <div className="flex items-center gap-2">
                         <span className="text-2xl font-bold text-white">{simulation.currentScore}</span>
-                        <ArrowUp className="w-5 h-5 text-green-400" />
-                        <span className="text-2xl font-bold text-green-400">{simulation.projectedScore}</span>
-                        <span className="text-sm text-green-400">(+{simulation.scoreDelta})</span>
+                        <ArrowUp className="w-5 h-5 text-emerald-400" />
+                        <span className="text-2xl font-bold text-emerald-400">{simulation.projectedScore}</span>
+                        <span className="text-sm text-emerald-400">(+{simulation.scoreDelta})</span>
                       </div>
                     </div>
 
@@ -569,10 +586,10 @@ export default function CreditPage() {
                       <motion.div
                         initial={{ scale: 0.9 }}
                         animate={{ scale: 1 }}
-                        className="flex items-center gap-2 p-3 bg-gradient-to-r from-purple-900/50 to-pink-900/50 rounded-lg border border-purple-500/30"
+                        className="glass-accent flex items-center gap-2 p-3 rounded-lg"
                       >
-                        <Sparkles className="w-5 h-5 text-purple-400" />
-                        <span className="text-purple-300">
+                        <Sparkles className="w-5 h-5 text-accent-400" />
+                        <span className="text-accent-300">
                           Tier Upgrade! <span className="font-bold capitalize">{simulation.currentTier}</span>
                           {' '}<ChevronRight className="w-4 h-4 inline" />{' '}
                           <span className="font-bold capitalize">{simulation.tierChange}</span>
@@ -585,14 +602,17 @@ export default function CreditPage() {
               </AnimatePresence>
 
               <button
-                onClick={makePayment}
+                onClick={() => {
+                  setPaymentError(null)
+                  makePayment()
+                }}
                 disabled={isPaying || paymentAmount <= 0}
                 className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold transition-all ${
                   paymentSuccess
-                    ? 'bg-green-600 text-white'
+                    ? 'bg-emerald-600 text-white'
                     : isPaying || paymentAmount <= 0
-                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white shadow-lg shadow-green-500/20'
+                      ? 'bg-dark-700 text-dark-400 cursor-not-allowed'
+                      : 'btn-glow'
                 }`}
               >
                 {paymentSuccess ? (
@@ -612,6 +632,27 @@ export default function CreditPage() {
                   </>
                 )}
               </button>
+
+              {/* Payment Error Display */}
+              <AnimatePresence>
+                {paymentError && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -10 }}
+                    className="mt-3 p-3 bg-red-900/30 border border-red-500/30 rounded-lg flex items-center gap-2"
+                  >
+                    <AlertCircle className="w-5 h-5 text-red-400 flex-shrink-0" />
+                    <span className="text-sm text-red-300 flex-1">{paymentError}</span>
+                    <button
+                      onClick={() => setPaymentError(null)}
+                      className="text-red-400 hover:text-red-300 text-lg font-bold"
+                    >
+                      ×
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           </motion.div>
         </div>
@@ -621,15 +662,15 @@ export default function CreditPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4 }}
-          className="mt-8 bg-gray-900/50 rounded-2xl p-6 border border-gray-800"
+          className="mt-8 card p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Calculator className="w-5 h-5 text-blue-400" />
+            <Calculator className="w-5 h-5 text-accent-400" />
             Discount Calculator
           </h3>
 
           <div className="mb-4">
-            <label className="text-sm text-gray-400 block mb-2">If you spend on LLM calls...</label>
+            <label className="text-sm text-dark-400 block mb-2">If you spend on LLM calls...</label>
             <div className="flex items-center gap-4">
               <input
                 type="range"
@@ -637,9 +678,9 @@ export default function CreditPage() {
                 max="1000"
                 value={spendAmount}
                 onChange={(e) => setSpendAmount(parseInt(e.target.value))}
-                className="flex-1 h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer accent-purple-500"
+                className="flex-1 h-2 bg-dark-700 rounded-lg appearance-none cursor-pointer accent-accent-500"
               />
-              <div className="bg-gray-800 px-4 py-2 rounded-lg min-w-[100px] text-center">
+              <div className="bg-dark-800 px-4 py-2 rounded-lg min-w-[100px] text-center">
                 <span className="text-xl font-bold text-white">${spendAmount}</span>
               </div>
             </div>
@@ -704,37 +745,37 @@ export default function CreditPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5 }}
-          className="mt-8 bg-gray-900/50 rounded-2xl p-6 border border-gray-800"
+          className="mt-8 card p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Award className="w-5 h-5 text-yellow-400" />
+            <Award className="w-5 h-5 text-amber-400" />
             Account Statistics
           </h3>
 
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-            <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-white">{profile.stats.totalTransactions}</div>
-              <div className="text-xs text-gray-400 mt-1">Total Transactions</div>
+              <div className="text-xs text-dark-400 mt-1">Total Transactions</div>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-green-400">{profile.stats.successfulPayments}</div>
-              <div className="text-xs text-gray-400 mt-1">On-Time Payments</div>
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-emerald-400">{profile.stats.successfulPayments}</div>
+              <div className="text-xs text-dark-400 mt-1">On-Time Payments</div>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-yellow-400">{profile.stats.latePayments}</div>
-              <div className="text-xs text-gray-400 mt-1">Late Payments</div>
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-amber-400">{profile.stats.latePayments}</div>
+              <div className="text-xs text-dark-400 mt-1">Late Payments</div>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-4 text-center">
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center">
               <div className="text-2xl font-bold text-red-400">{profile.stats.defaults}</div>
-              <div className="text-xs text-gray-400 mt-1">Defaults</div>
+              <div className="text-xs text-dark-400 mt-1">Defaults</div>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-blue-400">{profile.stats.accountAgeDays}</div>
-              <div className="text-xs text-gray-400 mt-1">Account Age (days)</div>
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-accent-400">{profile.stats.accountAgeDays}</div>
+              <div className="text-xs text-dark-400 mt-1">Account Age (days)</div>
             </div>
-            <div className="bg-gray-800/50 rounded-xl p-4 text-center">
-              <div className="text-2xl font-bold text-purple-400">${profile.collateral.stakedAmount}</div>
-              <div className="text-xs text-gray-400 mt-1">Staked Collateral</div>
+            <div className="bg-dark-800/50 rounded-xl p-4 text-center">
+              <div className="text-2xl font-bold text-accent-400">${profile.collateral.stakedAmount}</div>
+              <div className="text-xs text-dark-400 mt-1">Staked Collateral</div>
             </div>
           </div>
         </motion.div>
@@ -744,25 +785,25 @@ export default function CreditPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.6 }}
-          className="mt-8 bg-gradient-to-r from-purple-900/30 to-pink-900/30 rounded-2xl p-6 border border-purple-500/30"
+          className="mt-8 stat-card-accent p-6"
         >
           <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-400" />
+            <Sparkles className="w-5 h-5 text-accent-400" />
             How to Improve Your Score
           </h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {[
-              { icon: Clock, text: 'Make on-time payments consistently', color: 'text-green-400' },
-              { icon: Target, text: 'Keep credit utilization below 30%', color: 'text-blue-400' },
-              { icon: TrendingUp, text: 'Maintain regular platform activity', color: 'text-purple-400' },
-              { icon: DollarSign, text: 'Diversify transaction types', color: 'text-yellow-400' },
-              { icon: Lock, text: 'Add collateral to boost credit limit', color: 'text-pink-400' },
-              { icon: Shield, text: 'Avoid late payments and defaults', color: 'text-cyan-400' },
+              { icon: Clock, text: 'Make on-time payments consistently', color: 'text-emerald-400' },
+              { icon: Target, text: 'Keep credit utilization below 30%', color: 'text-accent-400' },
+              { icon: TrendingUp, text: 'Maintain regular platform activity', color: 'text-accent-400' },
+              { icon: DollarSign, text: 'Diversify transaction types', color: 'text-amber-400' },
+              { icon: Lock, text: 'Add collateral to boost credit limit', color: 'text-accent-400' },
+              { icon: Shield, text: 'Avoid late payments and defaults', color: 'text-accent-400' },
             ].map((tip, idx) => (
-              <div key={idx} className="flex items-center gap-3 bg-gray-800/30 rounded-lg p-3">
+              <div key={idx} className="flex items-center gap-3 bg-dark-800/30 rounded-lg p-3">
                 <tip.icon className={`w-5 h-5 ${tip.color}`} />
-                <span className="text-sm text-gray-300">{tip.text}</span>
+                <span className="text-sm text-dark-300">{tip.text}</span>
               </div>
             ))}
           </div>

@@ -15,7 +15,7 @@ export function Header({ isConnected }: HeaderProps) {
   const wallet = useWalletContext()
 
   return (
-    <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
+    <header className="glass-dark border-b border-dark-700/50 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 py-4">
         <div className="flex items-center justify-between">
           {/* Logo */}
@@ -25,16 +25,16 @@ export function Header({ isConnected }: HeaderProps) {
             className="flex items-center gap-3"
           >
             <div className="relative">
-              <Brain className="w-8 h-8 text-synapse-400" />
+              <Brain className="w-8 h-8 text-accent-400" />
               <motion.div
                 animate={{ scale: [1, 1.2, 1] }}
                 transition={{ repeat: Infinity, duration: 2 }}
-                className="absolute inset-0 bg-synapse-400/20 rounded-full blur-md"
+                className="absolute inset-0 bg-accent-400/20 rounded-full blur-md"
               />
             </div>
             <div>
               <h1 className="text-xl font-bold gradient-text">SYNAPSE</h1>
-              <p className="text-xs text-gray-500">Intent Network</p>
+              <p className="text-xs text-dark-400">Intent Network</p>
             </div>
           </motion.div>
 
@@ -43,7 +43,7 @@ export function Header({ isConnected }: HeaderProps) {
             {/* Full Demo Link */}
             <Link
               href="/demo"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-yellow-600/50 to-orange-600/50 text-yellow-400 hover:text-yellow-300 transition-colors border border-yellow-500/30"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent-800/50 text-accent-400 hover:text-accent-300 hover:bg-accent-800 transition-colors border border-accent-500/30"
             >
               <Zap className="w-4 h-4" />
               <span className="text-sm hidden sm:inline">Full Demo</span>
@@ -52,7 +52,7 @@ export function Header({ isConnected }: HeaderProps) {
             {/* MCP Bilateral Link */}
             <Link
               href="/mcp"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-800/50 text-purple-400 hover:text-purple-300 hover:bg-purple-800 transition-colors border border-purple-500/30"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent-800/50 text-accent-400 hover:text-accent-300 hover:bg-accent-800 transition-colors border border-accent-500/30"
             >
               <Plug className="w-4 h-4" />
               <span className="text-sm hidden sm:inline">MCP</span>
@@ -61,7 +61,7 @@ export function Header({ isConnected }: HeaderProps) {
             {/* LLM Comparison Link */}
             <Link
               href="/llm"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-synapse-800/50 text-synapse-400 hover:text-synapse-300 hover:bg-synapse-800 transition-colors border border-synapse-500/30"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-accent-800/50 text-accent-400 hover:text-accent-300 hover:bg-accent-800 transition-colors border border-accent-500/30"
             >
               <Sparkles className="w-4 h-4" />
               <span className="text-sm hidden sm:inline">LLM Compare</span>
@@ -70,7 +70,7 @@ export function Header({ isConnected }: HeaderProps) {
             {/* Dashboard Link */}
             <Link
               href="/dashboard"
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
             >
               <LayoutDashboard className="w-4 h-4" />
               <span className="text-sm hidden sm:inline">Dashboard</span>
@@ -78,19 +78,17 @@ export function Header({ isConnected }: HeaderProps) {
 
             {/* Connection Status */}
             <div className={cn(
-              'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm',
-              isConnected
-                ? 'bg-green-500/20 text-green-400'
-                : 'bg-red-500/20 text-red-400'
+              'badge',
+              isConnected ? 'badge-success' : 'badge-error'
             )}>
               {isConnected ? (
                 <>
-                  <Wifi className="w-4 h-4" />
+                  <Wifi className="w-3.5 h-3.5 mr-1.5" />
                   <span className="hidden sm:inline">Live</span>
                 </>
               ) : (
                 <>
-                  <WifiOff className="w-4 h-4" />
+                  <WifiOff className="w-3.5 h-3.5 mr-1.5" />
                   <span className="hidden sm:inline">Offline</span>
                 </>
               )}
@@ -101,7 +99,7 @@ export function Header({ isConnected }: HeaderProps) {
               href="https://github.com/kaushtubh/synapse"
               target="_blank"
               rel="noopener noreferrer"
-              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors"
+              className="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-lg bg-dark-800 text-dark-300 hover:text-white hover:bg-dark-700 transition-colors"
             >
               <Github className="w-4 h-4" />
               <span className="text-sm">GitHub</span>

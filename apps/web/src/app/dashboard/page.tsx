@@ -4,14 +4,16 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion } from 'framer-motion'
 import Link from 'next/link'
 import {
-  Users, Activity, DollarSign, Clock, TrendingUp, Star,
-  ArrowLeft, RefreshCw, Wifi, WifiOff, Shield, Zap, BarChart3
+  Users, Activity, DollarSign, Clock, Star,
+  RefreshCw, Shield, LayoutDashboard
 } from 'lucide-react'
 import { cn, formatUSD, truncateAddress } from '@/lib/utils'
 import { getProviders, getProviderStats, getNetworkStats } from '@/lib/api'
 import { useSocket } from '@/hooks/useSocket'
 import { LiveActivityFeed } from '@/components/LiveActivityFeed'
 import { NetworkStats } from '@/components/NetworkStats'
+import { PageHeader } from '@/components/PageHeader'
+import { staggerContainer, staggerItem } from '@/lib/animations'
 
 interface Provider {
   id: string
@@ -258,54 +260,33 @@ export default function Dashboard() {
   const allCapabilities = [...new Set(providers.flatMap(p => p.capabilities))]
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-950">
+    <div className="page-container">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <Link
-                href="/"
-                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-                Back
-              </Link>
-              <div className="h-6 w-px bg-gray-700" />
-              <h1 className="text-xl font-bold text-white">Network Dashboard</h1>
-            </div>
-
-            <div className="flex items-center gap-4">
-              <Link
-                href="/x402"
-                className="flex items-center gap-2 px-4 py-1.5 rounded-lg bg-gradient-to-r from-synapse-600 to-purple-600 text-white text-sm font-medium hover:opacity-90 transition-opacity"
-              >
-                <DollarSign className="w-4 h-4" />
-                x402 Payments
-              </Link>
-
-              <button
-                onClick={fetchData}
-                disabled={isLoading}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white transition-colors"
-              >
-                <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
-                Refresh
-              </button>
-
-              <div className={cn(
-                'flex items-center gap-2 px-3 py-1.5 rounded-full text-sm',
-                isConnected ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'
-              )}>
-                {isConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
-                {isConnected ? 'Live' : 'Offline'}
-              </div>
-            </div>
+      <PageHeader
+        title="Network Dashboard"
+        icon={<LayoutDashboard className="w-6 h-6" />}
+        rightContent={
+          <div className="flex items-center gap-3">
+            <Link
+              href="/x402"
+              className="btn-primary flex items-center gap-2 text-sm"
+            >
+              <DollarSign className="w-4 h-4" />
+              <span className="hidden sm:inline">x402 Payments</span>
+            </Link>
+            <button
+              onClick={fetchData}
+              disabled={isLoading}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+              <span className="hidden sm:inline">Refresh</span>
+            </button>
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="page-content">
         {/* Top Row - Stats and Activity Feed */}
         <div className="grid lg:grid-cols-3 gap-6 mb-8">
           {/* Network Stats */}
@@ -321,16 +302,11 @@ export default function Dashboard() {
 
         {/* Capability Filter */}
         <div className="mb-6">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">Filter by Capability</h2>
+          <h2 className="text-sm font-medium text-dark-400 mb-3">Filter by Capability</h2>
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setSelectedCapability(null)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-sm transition-colors',
-                selectedCapability === null
-                  ? 'bg-synapse-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              )}
+              className={cn('tab', selectedCapability === null && 'tab-active')}
             >
               All ({providers.length})
             </button>
@@ -338,12 +314,7 @@ export default function Dashboard() {
               <button
                 key={cap}
                 onClick={() => setSelectedCapability(cap)}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-sm transition-colors',
-                  selectedCapability === cap
-                    ? 'bg-synapse-600 text-white'
-                    : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                )}
+                className={cn('tab', selectedCapability === cap && 'tab-active')}
               >
                 {cap} ({providers.filter(p => p.capabilities.includes(cap)).length})
               </button>
@@ -352,14 +323,17 @@ export default function Dashboard() {
         </div>
 
         {/* Providers Grid */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredProviders.map((provider, index) => (
+        <motion.div
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+        >
+          {filteredProviders.map((provider) => (
             <motion.div
               key={provider.id}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.05 }}
-              className="bg-gray-900/50 rounded-xl p-5 border border-gray-800 hover:border-gray-700 transition-colors"
+              variants={staggerItem}
+              className="card-glow p-5"
             >
               {/* Header */}
               <div className="flex items-start justify-between mb-4">
@@ -368,26 +342,24 @@ export default function Dashboard() {
                     <h3 className="font-semibold text-white">{provider.name}</h3>
                     {provider.teeAttested && (
                       <span title="TEE Attested">
-                        <Shield className="w-4 h-4 text-green-400" />
+                        <Shield className="w-4 h-4 text-emerald-400" />
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500 font-mono mt-1">
+                  <p className="text-xs text-dark-500 font-mono mt-1">
                     {truncateAddress(provider.address)}
                   </p>
                 </div>
                 <span className={cn(
-                  'px-2 py-0.5 rounded-full text-xs font-medium',
-                  provider.status === 'ONLINE'
-                    ? 'bg-green-500/20 text-green-400'
-                    : 'bg-gray-500/20 text-gray-400'
+                  'badge',
+                  provider.status === 'ONLINE' ? 'badge-success' : 'badge-error'
                 )}>
                   {provider.status}
                 </span>
               </div>
 
               {/* Description */}
-              <p className="text-sm text-gray-400 mb-4 line-clamp-2">
+              <p className="text-sm text-dark-400 mb-4 line-clamp-2">
                 {provider.description}
               </p>
 
@@ -396,7 +368,7 @@ export default function Dashboard() {
                 {provider.capabilities.map(cap => (
                   <span
                     key={cap}
-                    className="px-2 py-0.5 bg-gray-800 rounded text-xs text-gray-300"
+                    className="badge badge-accent"
                   >
                     {cap}
                   </span>
@@ -405,8 +377,8 @@ export default function Dashboard() {
 
               {/* Stats */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-yellow-400 mb-1">
+                <div className="bg-dark-800/50 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-amber-400 mb-1">
                     <Star className="w-3 h-3" />
                     <span className="text-xs">Reputation</span>
                   </div>
@@ -414,8 +386,8 @@ export default function Dashboard() {
                     {provider.reputationScore.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-blue-400 mb-1">
+                <div className="bg-dark-800/50 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-accent-400 mb-1">
                     <Activity className="w-3 h-3" />
                     <span className="text-xs">Jobs</span>
                   </div>
@@ -423,8 +395,8 @@ export default function Dashboard() {
                     {provider.successfulJobs}/{provider.totalJobs}
                   </div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-green-400 mb-1">
+                <div className="bg-dark-800/50 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-emerald-400 mb-1">
                     <DollarSign className="w-3 h-3" />
                     <span className="text-xs">Earned</span>
                   </div>
@@ -432,8 +404,8 @@ export default function Dashboard() {
                     {formatUSD(provider.totalEarnings)}
                   </div>
                 </div>
-                <div className="bg-gray-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-purple-400 mb-1">
+                <div className="bg-dark-800/50 rounded-lg p-2">
+                  <div className="flex items-center gap-1 text-accent-400 mb-1">
                     <Clock className="w-3 h-3" />
                     <span className="text-xs">Avg Time</span>
                   </div>
@@ -444,27 +416,35 @@ export default function Dashboard() {
               </div>
             </motion.div>
           ))}
-        </div>
+        </motion.div>
 
         {/* Empty State */}
         {filteredProviders.length === 0 && !isLoading && (
-          <div className="text-center py-12">
-            <Users className="w-12 h-12 text-gray-600 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-400">No providers found</h3>
-            <p className="text-sm text-gray-500 mt-1">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="card p-12 text-center"
+          >
+            <Users className="w-12 h-12 text-dark-600 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-dark-300">No providers found</h3>
+            <p className="text-sm text-dark-500 mt-1">
               {selectedCapability
                 ? `No providers with capability "${selectedCapability}"`
                 : 'Start the API server and provider bots to see providers'}
             </p>
-          </div>
+          </motion.div>
         )}
 
         {/* Loading State */}
         {isLoading && providers.length === 0 && (
-          <div className="text-center py-12">
-            <RefreshCw className="w-8 h-8 text-synapse-400 mx-auto mb-4 animate-spin" />
-            <p className="text-gray-400">Loading providers...</p>
-          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="card p-12 text-center"
+          >
+            <RefreshCw className="w-8 h-8 text-accent-400 mx-auto mb-4 animate-spin" />
+            <p className="text-dark-400">Loading providers...</p>
+          </motion.div>
         )}
       </main>
     </div>

@@ -307,10 +307,10 @@ export default function Home() {
   const displayResult = enhancedResult || currentIntent?.result
 
   return (
-    <div className="min-h-screen">
+    <div className="page-container">
       <Header isConnected={isConnected} />
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="page-content">
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -322,7 +322,7 @@ export default function Home() {
             <br />
             <span className="text-white">To Serve You</span>
           </h1>
-          <p className="text-gray-400 text-lg max-w-2xl mx-auto">
+          <p className="text-dark-400 text-lg max-w-2xl mx-auto">
             Broadcast your intent, watch agents bid in real-time, and pay only the winner.
             Powered by x402 micropayments.
           </p>
@@ -335,32 +335,32 @@ export default function Home() {
           transition={{ delay: 0.1 }}
           className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8"
         >
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800 flex items-center gap-3">
-            <Users className="w-8 h-8 text-synapse-400" />
+          <div className="stat-card flex items-center gap-3">
+            <Users className="w-8 h-8 text-accent-400" />
             <div>
               <div className="text-2xl font-bold text-white">{stats.online}</div>
-              <div className="text-xs text-gray-400">Providers Online</div>
+              <div className="text-xs text-dark-400">Providers Online</div>
             </div>
           </div>
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800 flex items-center gap-3">
-            <Activity className="w-8 h-8 text-neural-400" />
+          <div className="stat-card flex items-center gap-3">
+            <Activity className="w-8 h-8 text-accent-400" />
             <div>
               <div className="text-2xl font-bold text-white">{recentIntents.length}</div>
-              <div className="text-xs text-gray-400">Intents This Session</div>
+              <div className="text-xs text-dark-400">Intents This Session</div>
             </div>
           </div>
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800 flex items-center gap-3">
-            <Zap className="w-8 h-8 text-yellow-400" />
+          <div className="stat-card flex items-center gap-3">
+            <Zap className="w-8 h-8 text-amber-400" />
             <div>
               <div className="text-2xl font-bold text-white">~1.5s</div>
-              <div className="text-xs text-gray-400">Avg Response Time</div>
+              <div className="text-xs text-dark-400">Avg Response Time</div>
             </div>
           </div>
-          <div className="bg-gray-900/50 rounded-xl p-4 border border-gray-800 flex items-center gap-3">
-            <TrendingUp className="w-8 h-8 text-green-400" />
+          <div className="stat-card flex items-center gap-3">
+            <TrendingUp className="w-8 h-8 text-emerald-400" />
             <div>
               <div className="text-2xl font-bold text-white">~40%</div>
-              <div className="text-xs text-gray-400">Avg Savings</div>
+              <div className="text-xs text-dark-400">Avg Savings</div>
             </div>
           </div>
         </motion.div>
@@ -376,19 +376,19 @@ export default function Home() {
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gray-900/50 rounded-xl p-4 border border-gray-800"
+                className="card p-4"
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm text-gray-400">Current Intent</span>
+                  <span className="text-sm text-dark-400">Current Intent</span>
                   <StatusBadge status={currentIntent.status} />
                 </div>
-                <div className="font-mono text-sm text-gray-300 truncate">
+                <div className="font-mono text-sm text-dark-300 truncate">
                   {currentIntent.id}
                 </div>
-                <div className="text-sm text-gray-400 mt-1">
+                <div className="text-sm text-dark-400 mt-1">
                   {currentIntent.type}: {JSON.stringify(currentIntent.params)}
                 </div>
-                <div className="text-sm text-synapse-400 mt-1">
+                <div className="text-sm text-accent-400 mt-1">
                   Budget: {formatUSD(currentIntent.maxBudget)}
                 </div>
               </motion.div>
@@ -402,26 +402,26 @@ export default function Home() {
               <motion.div
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30"
+                className="stat-card-accent p-6"
               >
                 <div className="flex items-center gap-4 mb-4">
-                  <div className="w-12 h-12 rounded-full bg-purple-500/20 flex items-center justify-center">
-                    <Cpu className="w-6 h-6 text-purple-400 animate-pulse" />
+                  <div className="w-12 h-12 rounded-full bg-accent-500/20 flex items-center justify-center">
+                    <Cpu className="w-6 h-6 text-accent-400 animate-pulse" />
                   </div>
                   <div>
-                    <h3 className="text-lg font-semibold text-purple-400">Executing with EigenCloud</h3>
-                    <p className="text-sm text-gray-400">Running AI inference in secure TEE enclave...</p>
+                    <h3 className="text-lg font-semibold text-accent-400">Executing with EigenCloud</h3>
+                    <p className="text-sm text-dark-400">Running AI inference in secure TEE enclave...</p>
                   </div>
                 </div>
-                <div className="h-1 bg-gray-800 rounded-full overflow-hidden">
+                <div className="progress-bar">
                   <motion.div
-                    className="h-full bg-gradient-to-r from-purple-500 to-synapse-500"
+                    className="progress-fill"
                     initial={{ width: '0%' }}
                     animate={{ width: '100%' }}
                     transition={{ duration: 3, ease: 'easeInOut' }}
                   />
                 </div>
-                <div className="flex items-center justify-center gap-4 mt-4 text-xs text-gray-500">
+                <div className="flex items-center justify-center gap-4 mt-4 text-xs text-dark-500">
                   <div className="flex items-center gap-1">
                     <Shield className="w-3 h-3" />
                     <span>TEE Verified</span>
@@ -464,23 +464,23 @@ export default function Home() {
           transition={{ delay: 0.3 }}
           className="mt-12"
         >
-          <h2 className="text-xl font-semibold mb-6 text-gray-300 text-center">Explore Synapse Features</h2>
+          <h2 className="text-xl font-semibold mb-6 text-dark-300 text-center">Explore Synapse Features</h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
             {/* LLM Marketplace */}
             <Link href="/llm" className="group">
-              <div className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 rounded-2xl p-6 border border-purple-500/30 hover:border-purple-500/50 transition-all hover:shadow-lg hover:shadow-purple-500/10">
+              <div className="card-glow p-6">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center">
-                    <Brain className="w-5 h-5 text-purple-400" />
+                  <div className="w-10 h-10 rounded-xl bg-accent-500/20 flex items-center justify-center">
+                    <Brain className="w-5 h-5 text-accent-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-purple-400 transition-colors">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-accent-400 transition-colors">
                     LLM Marketplace
                   </h3>
                 </div>
-                <p className="text-gray-400 text-sm mb-4">
+                <p className="text-dark-400 text-sm mb-4">
                   LLMs compete for your prompt. Compare responses, quality scores, and costs - pay only when you select.
                 </p>
-                <div className="flex items-center text-purple-400 text-sm font-medium">
+                <div className="flex items-center text-accent-400 text-sm font-medium">
                   Try it <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
@@ -488,19 +488,19 @@ export default function Home() {
 
             {/* Credit Score */}
             <Link href="/credit" className="group">
-              <div className="bg-gradient-to-br from-green-900/30 to-gray-900/50 rounded-2xl p-6 border border-green-500/30 hover:border-green-500/50 transition-all hover:shadow-lg hover:shadow-green-500/10">
+              <div className="card-glow p-6">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-green-500/20 flex items-center justify-center">
-                    <CreditCard className="w-5 h-5 text-green-400" />
+                  <div className="w-10 h-10 rounded-xl bg-emerald-500/20 flex items-center justify-center">
+                    <CreditCard className="w-5 h-5 text-emerald-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-green-400 transition-colors">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-accent-400 transition-colors">
                     Credit Score
                   </h3>
                 </div>
-                <p className="text-gray-400 text-sm mb-4">
+                <p className="text-dark-400 text-sm mb-4">
                   Build your agent credit score. Unlock discounts up to 20% off and higher credit limits.
                 </p>
-                <div className="flex items-center text-green-400 text-sm font-medium">
+                <div className="flex items-center text-accent-400 text-sm font-medium">
                   View Dashboard <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
@@ -508,19 +508,19 @@ export default function Home() {
 
             {/* MCP Tools */}
             <Link href="/mcp" className="group">
-              <div className="bg-gradient-to-br from-blue-900/30 to-gray-900/50 rounded-2xl p-6 border border-blue-500/30 hover:border-blue-500/50 transition-all hover:shadow-lg hover:shadow-blue-500/10">
+              <div className="card-glow p-6">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                    <Layers className="w-5 h-5 text-blue-400" />
+                  <div className="w-10 h-10 rounded-xl bg-accent-500/20 flex items-center justify-center">
+                    <Layers className="w-5 h-5 text-accent-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-blue-400 transition-colors">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-accent-400 transition-colors">
                     MCP Tools
                   </h3>
                 </div>
-                <p className="text-gray-400 text-sm mb-4">
+                <p className="text-dark-400 text-sm mb-4">
                   Execute real tools (weather, crypto, news). Decompose complex intents into sub-tasks.
                 </p>
-                <div className="flex items-center text-blue-400 text-sm font-medium">
+                <div className="flex items-center text-accent-400 text-sm font-medium">
                   Explore <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
@@ -528,19 +528,19 @@ export default function Home() {
 
             {/* Disputes */}
             <Link href="/disputes" className="group">
-              <div className="bg-gradient-to-br from-red-900/30 to-gray-900/50 rounded-2xl p-6 border border-red-500/30 hover:border-red-500/50 transition-all hover:shadow-lg hover:shadow-red-500/10">
+              <div className="card-glow p-6">
                 <div className="flex items-center gap-3 mb-3">
                   <div className="w-10 h-10 rounded-xl bg-red-500/20 flex items-center justify-center">
                     <Gavel className="w-5 h-5 text-red-400" />
                   </div>
-                  <h3 className="text-lg font-semibold text-white group-hover:text-red-400 transition-colors">
+                  <h3 className="text-lg font-semibold text-white group-hover:text-accent-400 transition-colors">
                     Disputes
                   </h3>
                 </div>
-                <p className="text-gray-400 text-sm mb-4">
+                <p className="text-dark-400 text-sm mb-4">
                   Oracle-backed dispute resolution with real USDC slashing on Base Sepolia.
                 </p>
-                <div className="flex items-center text-red-400 text-sm font-medium">
+                <div className="flex items-center text-accent-400 text-sm font-medium">
                   Test Slashing <ChevronRight className="w-4 h-4 ml-1 group-hover:translate-x-1 transition-transform" />
                 </div>
               </div>
@@ -549,7 +549,7 @@ export default function Home() {
 
           {/* Interactive Demo Link */}
           <div className="mt-6 text-center">
-            <Link href="/demo" className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 rounded-xl font-medium transition-all text-white">
+            <Link href="/demo" className="btn-glow inline-flex items-center gap-2 px-6 py-3">
               <Sparkles className="w-5 h-5" />
               Try Interactive Demo
               <ChevronRight className="w-4 h-4" />
@@ -564,27 +564,27 @@ export default function Home() {
             animate={{ opacity: 1 }}
             className="mt-12"
           >
-            <h2 className="text-xl font-semibold mb-4 text-gray-300">Recent Intents</h2>
+            <h2 className="text-xl font-semibold mb-4 text-dark-300">Recent Intents</h2>
             <div className="grid md:grid-cols-3 gap-4">
               {recentIntents.map((intent) => (
                 <div
                   key={intent.id}
-                  className="bg-gray-900/50 rounded-xl p-4 border border-gray-800"
+                  className="card p-4"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-sm font-medium text-white">{intent.type}</span>
                     <StatusBadge status={intent.status} />
                   </div>
-                  <div className="text-xs text-gray-400 truncate">
+                  <div className="text-xs text-dark-400 truncate">
                     {JSON.stringify(intent.params)}
                   </div>
                   {intent.result && (
                     <div className="mt-2 text-sm">
-                      <span className="text-gray-400">Cost: </span>
-                      <span className="text-green-400">
+                      <span className="text-dark-400">Cost: </span>
+                      <span className="text-emerald-400">
                         {formatUSD(intent.result.settledAmount)}
                       </span>
-                      <span className="text-gray-500 text-xs ml-2">
+                      <span className="text-dark-500 text-xs ml-2">
                         ({((intent.maxBudget - intent.result.settledAmount) / intent.maxBudget * 100).toFixed(0)}% saved)
                       </span>
                     </div>
@@ -596,20 +596,20 @@ export default function Home() {
         )}
 
         {/* Footer */}
-        <footer className="mt-16 pt-8 border-t border-gray-800 text-center">
-          <p className="text-gray-500 text-sm">
+        <footer className="mt-16 pt-8 border-t border-dark-700/50 text-center">
+          <p className="text-dark-500 text-sm">
             Built for{' '}
             <a
               href="https://www.x402hackathon.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="text-synapse-400 hover:text-synapse-300 transition-colors"
+              className="text-accent-400 hover:text-accent-300 transition-colors"
             >
               x402 Hackathon
             </a>
             {' '}| Powered by Crossmint, Eigencloud, and thirdweb
           </p>
-          <p className="text-gray-600 text-xs mt-2">
+          <p className="text-dark-600 text-xs mt-2">
             Kaushtubh | LNMIIT | December 2025
           </p>
         </footer>

@@ -3,14 +3,16 @@
 import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Plug, Wallet, Users, ArrowLeftRight, DollarSign, Clock, Check,
+  Plug, Users, ArrowLeftRight, Check,
   Copy, AlertCircle, Loader2, Shield, ExternalLink, RefreshCw,
-  Home, Wifi, Plus, ArrowRight, ArrowDown, ChevronDown, ChevronUp,
+  Plus, ArrowRight, ArrowDown, ChevronDown, ChevronUp,
   Zap, Scale, Receipt, CheckCircle2, Cloud, Bitcoin, Newspaper,
   Play, GitBranch, Layers, History
 } from 'lucide-react'
 import Link from 'next/link'
 import { API_URL } from '@/lib/config'
+import { PageHeader } from '@/components/PageHeader'
+import { fadeInUp } from '@/lib/animations'
 
 // Types
 interface MCPIdentity {
@@ -717,103 +719,84 @@ export default function MCPPage() {
 
   if (!isClient) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+      <div className="page-container flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950">
+    <div className="page-container">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <Plug className="w-8 h-8 text-purple-400" />
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">MCP TOOLS</h1>
-                <p className="text-xs text-gray-500">Real API Execution</p>
-              </div>
-            </Link>
-            <div className="flex items-center gap-4">
-              <div className="px-3 py-1.5 rounded-lg bg-green-900/30 border border-green-500/30 text-green-400 text-sm">
-                Session: ${sessionSpend.toFixed(4)} USDC
-              </div>
-              <Link
-                href="/llm"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-900/30 text-purple-400 hover:bg-purple-900/50 transition-colors text-sm border border-purple-500/30"
-              >
-                <Zap className="w-4 h-4" />
-                <span className="hidden sm:inline">LLM Compare</span>
-              </Link>
-              <Link
-                href="/"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-sm"
-              >
-                <Home className="w-4 h-4" />
-                <span className="hidden sm:inline">Home</span>
-              </Link>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400">
-                <Wifi className="w-4 h-4" />
-                <span className="hidden sm:inline">Live</span>
-              </div>
+      <PageHeader
+        title="MCP Tools"
+        subtitle="Real API Execution"
+        icon={<Plug className="w-6 h-6" />}
+        rightContent={
+          <div className="flex items-center gap-3">
+            <div className="badge badge-success">
+              Session: ${sessionSpend.toFixed(4)} USDC
             </div>
+            <Link
+              href="/llm"
+              className="btn-secondary text-sm flex items-center gap-2"
+            >
+              <Zap className="w-4 h-4" />
+              <span className="hidden sm:inline">LLM Compare</span>
+            </Link>
           </div>
-        </div>
-      </header>
+        }
+      />
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="page-content">
         {/* Hero Section */}
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
+          variants={fadeInUp}
+          initial="initial"
+          animate="animate"
           className="text-center mb-8"
         >
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Plug className="w-10 h-10 text-purple-400" />
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
-              MCP Tool Execution
-            </h1>
-          </div>
-          <p className="text-gray-400 text-lg max-w-3xl mx-auto">
+          <h1 className="text-4xl md:text-5xl font-bold gradient-text mb-4">
+            MCP Tool Execution
+          </h1>
+          <p className="text-dark-400 text-lg max-w-3xl mx-auto">
             Execute real tools, decompose complex intents, and settle payments on-chain
           </p>
         </motion.div>
 
         {/* Debug Panel - Shows current state */}
-        <div className="mb-6 p-4 bg-gray-800/50 rounded-lg border border-gray-700 text-xs font-mono">
+        <div className="mb-6 p-4 card text-xs font-mono">
           <div className="flex items-center justify-between mb-2">
-            <div className="text-yellow-400 font-bold">🔧 Debug Info</div>
+            <div className="text-amber-400 font-bold">🔧 Debug Info</div>
             <button
               onClick={() => {
                 console.log('[MCP] Manual refresh all balances clicked');
                 refreshBalances();
               }}
-              className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 text-white rounded text-xs"
+              className="btn-secondary px-2 py-1 text-xs"
             >
               Refresh Balances
             </button>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <div className="text-gray-400">Client Identity:</div>
-              <div className="text-blue-400 break-all">{clientIdentity?.address || 'null'}</div>
-              <div className="text-gray-400 mt-1">Client Balance:</div>
-              <div className="text-green-400">
+              <div className="text-dark-400">Client Identity:</div>
+              <div className="text-accent-400 break-all">{clientIdentity?.address || 'null'}</div>
+              <div className="text-dark-400 mt-1">Client Balance:</div>
+              <div className="text-emerald-400">
                 {clientBalance ? `${clientBalance.usdc.toFixed(6)} USDC | ${clientBalance.eth.toFixed(6)} ETH` : 'null'}
               </div>
             </div>
             <div>
-              <div className="text-gray-400">Server Identity:</div>
-              <div className="text-purple-400 break-all">{serverIdentity?.address || 'null'}</div>
-              <div className="text-gray-400 mt-1">Server Balance:</div>
-              <div className="text-green-400">
+              <div className="text-dark-400">Server Identity:</div>
+              <div className="text-cyan-400 break-all">{serverIdentity?.address || 'null'}</div>
+              <div className="text-dark-400 mt-1">Server Balance:</div>
+              <div className="text-emerald-400">
                 {serverBalance ? `${serverBalance.usdc.toFixed(6)} USDC | ${serverBalance.eth.toFixed(6)} ETH` : 'null'}
               </div>
             </div>
           </div>
-          <div className="mt-2 text-gray-500">
+          <div className="mt-2 text-dark-500">
             Click &quot;Refresh Balances&quot; after settlement. If addresses don&apos;t match where you sent USDC, click &quot;Reset All&quot; in Bilateral tab.
           </div>
         </div>
@@ -828,11 +811,7 @@ export default function MCPPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all ${
-                activeTab === tab.id
-                  ? 'bg-purple-600 text-white'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-              }`}
+              className={`tab flex items-center gap-2 ${activeTab === tab.id ? 'tab-active' : ''}`}
             >
               <tab.icon className="w-4 h-4" />
               {tab.label}
@@ -847,11 +826,11 @@ export default function MCPPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mb-6 flex items-center gap-2 px-4 py-3 rounded-lg bg-red-900/30 border border-red-500/30 text-red-400"
+              className="mb-6 flex items-center gap-2 px-4 py-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400"
             >
               <AlertCircle className="w-5 h-5" />
               <span>{error}</span>
-              <button onClick={() => setError(null)} className="ml-auto text-red-300 hover:text-red-200">
+              <button onClick={() => setError(null)} className="ml-auto btn-ghost text-red-300 hover:text-red-200 px-2 py-1">
                 Dismiss
               </button>
             </motion.div>
@@ -869,9 +848,9 @@ export default function MCPPage() {
               className="grid md:grid-cols-2 gap-8"
             >
               {/* Tool Selector */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Play className="w-5 h-5 text-purple-400" />
+                  <Play className="w-5 h-5 text-accent-400" />
                   Execute Real Tools
                 </h3>
 
@@ -884,8 +863,8 @@ export default function MCPPage() {
                         onClick={() => setSelectedTool(tool)}
                         className={`flex flex-col items-center gap-2 p-3 rounded-lg transition-all ${
                           selectedTool.name === tool.name
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
+                            ? 'bg-accent-600 text-white'
+                            : 'bg-dark-800 text-dark-400 hover:bg-dark-700'
                         }`}
                       >
                         <tool.icon className="w-6 h-6" />
@@ -901,14 +880,14 @@ export default function MCPPage() {
                     value={toolInput}
                     onChange={(e) => setToolInput(e.target.value)}
                     placeholder={selectedTool.placeholder}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500"
+                    className="input"
                   />
 
                   {/* Execute Button */}
                   <button
                     onClick={executeTool}
                     disabled={isExecutingTool}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-500 hover:to-blue-500 text-white font-semibold transition-all disabled:opacity-50"
+                    className="btn-glow w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50"
                   >
                     {isExecutingTool ? (
                       <>
@@ -926,14 +905,14 @@ export default function MCPPage() {
               </div>
 
               {/* Results */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Receipt className="w-5 h-5 text-green-400" />
+                  <Receipt className="w-5 h-5 text-emerald-400" />
                   Results ({toolResults.length})
                 </h3>
 
                 {toolResults.length === 0 ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-dark-500">
                     Execute a tool to see results
                   </div>
                 ) : (
@@ -943,16 +922,16 @@ export default function MCPPage() {
                         key={idx}
                         initial={{ opacity: 0, x: 20 }}
                         animate={{ opacity: 1, x: 0 }}
-                        className="bg-gray-800/50 rounded-lg p-4 border border-gray-700"
+                        className="bg-dark-800/50 rounded-lg p-4 border border-dark-700"
                       >
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xs text-purple-400">{result.source}</span>
+                          <span className="text-xs text-accent-400">{result.source}</span>
                           <div className="flex items-center gap-2 text-xs">
-                            <span className="text-gray-400">{result.latencyMs}ms</span>
-                            <span className="text-green-400">${result.cost}</span>
+                            <span className="text-dark-400">{result.latencyMs}ms</span>
+                            <span className="text-emerald-400">${result.cost}</span>
                           </div>
                         </div>
-                        <pre className="text-sm text-gray-300 overflow-x-auto">
+                        <pre className="text-sm text-dark-300 overflow-x-auto">
                           {JSON.stringify(result.data, null, 2).slice(0, 500)}
                         </pre>
                       </motion.div>
@@ -972,9 +951,9 @@ export default function MCPPage() {
               className="grid md:grid-cols-2 gap-8"
             >
               {/* Intent Input */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <GitBranch className="w-5 h-5 text-purple-400" />
+                  <GitBranch className="w-5 h-5 text-accent-400" />
                   Decompose Complex Intent
                 </h3>
 
@@ -984,13 +963,13 @@ export default function MCPPage() {
                     onChange={(e) => setIntentInput(e.target.value)}
                     placeholder="e.g., Get BTC and ETH prices with latest crypto news"
                     rows={3}
-                    className="w-full bg-gray-800 border border-gray-700 rounded-lg px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 resize-none"
+                    className="input resize-none"
                   />
 
                   <button
                     onClick={decomposeIntent}
                     disabled={isDecomposing || !intentInput.trim()}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white font-semibold transition-all disabled:opacity-50"
+                    className="btn-glow w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50"
                   >
                     {isDecomposing ? (
                       <>
@@ -1007,7 +986,7 @@ export default function MCPPage() {
 
                   {/* Example intents */}
                   <div className="pt-2">
-                    <p className="text-xs text-gray-500 mb-2">Try these examples:</p>
+                    <p className="text-xs text-dark-500 mb-2">Try these examples:</p>
                     <div className="flex flex-wrap gap-2">
                       {[
                         'Get BTC and ETH prices',
@@ -1017,7 +996,7 @@ export default function MCPPage() {
                         <button
                           key={example}
                           onClick={() => setIntentInput(example)}
-                          className="text-xs px-2 py-1 rounded bg-gray-800 text-gray-400 hover:bg-gray-700 transition-colors"
+                          className="text-xs px-2 py-1 rounded bg-dark-800 text-dark-400 hover:bg-dark-700 transition-colors"
                         >
                           {example}
                         </button>
@@ -1028,34 +1007,34 @@ export default function MCPPage() {
               </div>
 
               {/* Decomposition Result */}
-              <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+              <div className="card p-6">
                 <h3 className="text-lg font-semibold text-white mb-4 flex items-center gap-2">
-                  <Layers className="w-5 h-5 text-blue-400" />
+                  <Layers className="w-5 h-5 text-accent-400" />
                   Execution Plan
                 </h3>
 
                 {!decompositionResult ? (
-                  <div className="text-center py-8 text-gray-500">
+                  <div className="text-center py-8 text-dark-500">
                     Enter an intent and click Decompose to see the execution plan
                   </div>
                 ) : (
                   <div className="space-y-4">
                     {/* Parsed Intent */}
-                    <div className="bg-gray-800/50 rounded-lg p-3">
-                      <div className="text-xs text-gray-400 mb-1">Parsed As</div>
-                      <div className="text-purple-400 font-mono">{decompositionResult.parsedAs}</div>
+                    <div className="bg-dark-800/50 rounded-lg p-3">
+                      <div className="text-xs text-dark-400 mb-1">Parsed As</div>
+                      <div className="text-accent-400 font-mono">{decompositionResult.parsedAs}</div>
                     </div>
 
                     {/* Execution Batches */}
                     <div className="space-y-3">
                       {decompositionResult.executionPlan.batches.map((batch, batchIdx) => (
-                        <div key={batchIdx} className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                        <div key={batchIdx} className="bg-dark-800/50 rounded-lg p-3 border border-dark-700">
                           <div className="flex items-center gap-2 mb-2">
-                            <span className="text-xs px-2 py-0.5 rounded bg-purple-900/50 text-purple-400">
+                            <span className="badge badge-accent">
                               Batch {batch.batchNumber}
                             </span>
                             {batch.parallel && (
-                              <span className="text-xs px-2 py-0.5 rounded bg-blue-900/50 text-blue-400">
+                              <span className="badge badge-info">
                                 Parallel
                               </span>
                             )}
@@ -1065,13 +1044,13 @@ export default function MCPPage() {
                               <div key={intent.id} className="flex items-center justify-between text-sm">
                                 <div className="flex items-center gap-2">
                                   {planResults[intent.id] ? (
-                                    <CheckCircle2 className="w-4 h-4 text-green-400" />
+                                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
                                   ) : (
-                                    <div className="w-4 h-4 rounded-full border border-gray-600" />
+                                    <div className="w-4 h-4 rounded-full border border-dark-600" />
                                   )}
-                                  <span className="text-gray-300">{intent.type}</span>
+                                  <span className="text-dark-300">{intent.type}</span>
                                 </div>
-                                <span className="text-green-400">${intent.estimatedCost.toFixed(3)}</span>
+                                <span className="text-emerald-400">${intent.estimatedCost.toFixed(3)}</span>
                               </div>
                             ))}
                           </div>
@@ -1080,9 +1059,9 @@ export default function MCPPage() {
                     </div>
 
                     {/* Total */}
-                    <div className="flex items-center justify-between pt-2 border-t border-gray-700">
-                      <span className="text-gray-400">Total Estimated Cost</span>
-                      <span className="text-lg font-bold text-green-400">
+                    <div className="flex items-center justify-between pt-2 border-t border-dark-700">
+                      <span className="text-dark-400">Total Estimated Cost</span>
+                      <span className="text-lg font-bold text-emerald-400">
                         ${decompositionResult.totalEstimatedCost.toFixed(4)} USDC
                       </span>
                     </div>
@@ -1091,7 +1070,7 @@ export default function MCPPage() {
                     <button
                       onClick={executePlan}
                       disabled={isExecutingPlan || Object.keys(planResults).length > 0}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold transition-all disabled:opacity-50"
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold transition-all disabled:opacity-50"
                     >
                       {isExecutingPlan ? (
                         <>
@@ -1114,14 +1093,14 @@ export default function MCPPage() {
                     {/* Results */}
                     {Object.keys(planResults).length > 0 && (
                       <div className="mt-4 space-y-2">
-                        <h4 className="text-sm font-semibold text-gray-400">Results</h4>
+                        <h4 className="text-sm font-semibold text-dark-400">Results</h4>
                         {Object.entries(planResults).map(([id, result]) => (
-                          <div key={id} className="bg-gray-800/50 rounded-lg p-3 text-sm">
+                          <div key={id} className="bg-dark-800/50 rounded-lg p-3 text-sm">
                             <div className="flex items-center gap-2 mb-1">
-                              <span className="text-purple-400">{result.source}</span>
-                              <span className="text-gray-500">{result.latencyMs}ms</span>
+                              <span className="text-accent-400">{result.source}</span>
+                              <span className="text-dark-500">{result.latencyMs}ms</span>
                             </div>
-                            <pre className="text-xs text-gray-400 overflow-x-auto">
+                            <pre className="text-xs text-dark-400 overflow-x-auto">
                               {JSON.stringify(result.data, null, 2).slice(0, 200)}
                             </pre>
                           </div>
@@ -1145,40 +1124,40 @@ export default function MCPPage() {
               {/* Left Column - Identities */}
               <div className="space-y-6">
                 {/* Client Identity */}
-                <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+                <div className="card p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <Users className="w-5 h-5 text-blue-400" />
+                      <Users className="w-5 h-5 text-accent-400" />
                       MCP Client Identity
                     </h3>
                     {clientIdentity && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-green-500/20 text-green-400">Active</span>
+                      <span className="badge badge-success">Active</span>
                     )}
                   </div>
 
                   {clientIdentity ? (
                     <div className="space-y-3">
-                      <div className="bg-gray-800/50 rounded-lg p-3">
-                        <div className="text-xs text-gray-400 mb-1">Wallet Address</div>
+                      <div className="bg-dark-800/50 rounded-lg p-3">
+                        <div className="text-xs text-dark-400 mb-1">Wallet Address</div>
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-sm text-blue-400">{clientIdentity.address.slice(0, 10)}...{clientIdentity.address.slice(-8)}</span>
+                          <span className="font-mono text-sm text-accent-400">{clientIdentity.address.slice(0, 10)}...{clientIdentity.address.slice(-8)}</span>
                           <button
                             onClick={() => copyToClipboard(clientIdentity.address, 'clientAddr')}
-                            className="p-1 hover:bg-gray-700 rounded"
+                            className="p-1 hover:bg-dark-700 rounded"
                           >
-                            {copied === 'clientAddr' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                            {copied === 'clientAddr' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-dark-400" />}
                           </button>
                         </div>
                       </div>
-                      <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+                      <div className="glass-accent rounded-lg p-3">
                         <div className="flex items-center justify-between mb-1">
-                          <div className="text-xs text-gray-400">On-Chain Balance (Base Sepolia)</div>
+                          <div className="text-xs text-dark-400">On-Chain Balance (Base Sepolia)</div>
                           <button
                             onClick={() => {
                               console.log('[MCP] Manual refresh clicked for client');
                               fetchBalanceForAddress(clientIdentity.address, 'client');
                             }}
-                            className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-blue-400"
+                            className="p-1 hover:bg-dark-700 rounded text-dark-400 hover:text-accent-400"
                             title="Refresh balance"
                           >
                             <RefreshCw className="w-3 h-3" />
@@ -1186,13 +1165,13 @@ export default function MCPPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="text-green-400 font-bold">
+                            <span className="text-emerald-400 font-bold">
                               {clientBalance !== null && clientBalance !== undefined
                                 ? (typeof clientBalance.usdc === 'number' ? clientBalance.usdc.toFixed(4) : String(clientBalance.usdc))
                                 : '...'} USDC
                             </span>
-                            <span className="text-gray-500 mx-2">|</span>
-                            <span className="text-gray-400">
+                            <span className="text-dark-500 mx-2">|</span>
+                            <span className="text-dark-400">
                               {clientBalance !== null && clientBalance !== undefined
                                 ? (typeof clientBalance.eth === 'number' ? clientBalance.eth.toFixed(4) : String(clientBalance.eth))
                                 : '...'} ETH
@@ -1202,7 +1181,7 @@ export default function MCPPage() {
                             href={`https://sepolia.basescan.org/address/${clientIdentity.address}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300"
+                            className="text-accent-400 hover:text-accent-300"
                           >
                             <ExternalLink className="w-4 h-4" />
                           </a>
@@ -1213,7 +1192,7 @@ export default function MCPPage() {
                     <button
                       onClick={() => createIdentity('client')}
                       disabled={isCreatingIdentity !== null}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-glow w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isCreatingIdentity === 'client' ? (
                         <>
@@ -1231,40 +1210,40 @@ export default function MCPPage() {
                 </div>
 
                 {/* Server Identity */}
-                <div className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800">
+                <div className="card p-6">
                   <div className="flex items-center justify-between mb-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <Shield className="w-5 h-5 text-purple-400" />
+                      <Shield className="w-5 h-5 text-cyan-400" />
                       MCP Server Identity
                     </h3>
                     {serverIdentity && (
-                      <span className="px-2 py-0.5 rounded text-xs bg-green-500/20 text-green-400">Active</span>
+                      <span className="badge badge-success">Active</span>
                     )}
                   </div>
 
                   {serverIdentity ? (
                     <div className="space-y-3">
-                      <div className="bg-gray-800/50 rounded-lg p-3">
-                        <div className="text-xs text-gray-400 mb-1">Wallet Address</div>
+                      <div className="bg-dark-800/50 rounded-lg p-3">
+                        <div className="text-xs text-dark-400 mb-1">Wallet Address</div>
                         <div className="flex items-center justify-between">
-                          <span className="font-mono text-sm text-purple-400">{serverIdentity.address.slice(0, 10)}...{serverIdentity.address.slice(-8)}</span>
+                          <span className="font-mono text-sm text-cyan-400">{serverIdentity.address.slice(0, 10)}...{serverIdentity.address.slice(-8)}</span>
                           <button
                             onClick={() => copyToClipboard(serverIdentity.address, 'serverAddr')}
-                            className="p-1 hover:bg-gray-700 rounded"
+                            className="p-1 hover:bg-dark-700 rounded"
                           >
-                            {copied === 'serverAddr' ? <Check className="w-4 h-4 text-green-400" /> : <Copy className="w-4 h-4 text-gray-400" />}
+                            {copied === 'serverAddr' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-dark-400" />}
                           </button>
                         </div>
                       </div>
-                      <div className="bg-green-900/20 border border-green-500/30 rounded-lg p-3">
+                      <div className="glass-accent rounded-lg p-3">
                         <div className="flex items-center justify-between mb-1">
-                          <div className="text-xs text-gray-400">On-Chain Balance (Base Sepolia)</div>
+                          <div className="text-xs text-dark-400">On-Chain Balance (Base Sepolia)</div>
                           <button
                             onClick={() => {
                               console.log('[MCP] Manual refresh clicked for server');
                               fetchBalanceForAddress(serverIdentity.address, 'server');
                             }}
-                            className="p-1 hover:bg-gray-700 rounded text-gray-400 hover:text-purple-400"
+                            className="p-1 hover:bg-dark-700 rounded text-dark-400 hover:text-cyan-400"
                             title="Refresh balance"
                           >
                             <RefreshCw className="w-3 h-3" />
@@ -1272,13 +1251,13 @@ export default function MCPPage() {
                         </div>
                         <div className="flex items-center justify-between">
                           <div>
-                            <span className="text-green-400 font-bold">
+                            <span className="text-emerald-400 font-bold">
                               {serverBalance !== null && serverBalance !== undefined
                                 ? (typeof serverBalance.usdc === 'number' ? serverBalance.usdc.toFixed(4) : String(serverBalance.usdc))
                                 : '...'} USDC
                             </span>
-                            <span className="text-gray-500 mx-2">|</span>
-                            <span className="text-gray-400">
+                            <span className="text-dark-500 mx-2">|</span>
+                            <span className="text-dark-400">
                               {serverBalance !== null && serverBalance !== undefined
                                 ? (typeof serverBalance.eth === 'number' ? serverBalance.eth.toFixed(4) : String(serverBalance.eth))
                                 : '...'} ETH
@@ -1288,7 +1267,7 @@ export default function MCPPage() {
                             href={`https://sepolia.basescan.org/address/${serverIdentity.address}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="text-blue-400 hover:text-blue-300"
+                            className="text-accent-400 hover:text-accent-300"
                           >
                             <ExternalLink className="w-4 h-4" />
                           </a>
@@ -1299,7 +1278,7 @@ export default function MCPPage() {
                     <button
                       onClick={() => createIdentity('server')}
                       disabled={isCreatingIdentity !== null}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="btn-glow w-full flex items-center justify-center gap-2 py-3 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isCreatingIdentity === 'server' ? (
                         <>
@@ -1323,7 +1302,7 @@ export default function MCPPage() {
                     animate={{ opacity: 1, y: 0 }}
                     onClick={createSession}
                     disabled={isCreatingSession}
-                    className="w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white font-semibold text-lg transition-all shadow-lg shadow-purple-500/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="btn-glow w-full flex items-center justify-center gap-2 px-6 py-4 text-lg glow disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isCreatingSession ? (
                       <>
@@ -1347,65 +1326,65 @@ export default function MCPPage() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-purple-500/30"
+                    className="stat-card-accent p-6"
                   >
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Scale className="w-5 h-5 text-purple-400" />
+                        <Scale className="w-5 h-5 text-accent-400" />
                         Bilateral Session
                       </h3>
-                      <span className={`px-2 py-0.5 rounded text-xs ${
+                      <span className={`badge ${
                         currentSession.status === 'settled'
-                          ? 'bg-green-500/20 text-green-400'
-                          : 'bg-yellow-500/20 text-yellow-400'
+                          ? 'badge-success'
+                          : 'badge-warning'
                       }`}>
                         {currentSession.status}
                       </span>
                     </div>
 
                     {/* Session Addresses - IMPORTANT: These are used for settlement */}
-                    <div className="bg-yellow-900/20 border border-yellow-500/30 rounded-lg p-3 mb-4">
-                      <div className="text-xs text-yellow-400 font-semibold mb-2 flex items-center gap-1">
+                    <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4">
+                      <div className="text-xs text-amber-400 font-semibold mb-2 flex items-center gap-1">
                         <AlertCircle className="w-3 h-3" />
                         Settlement Addresses (On-Chain Transfer)
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-xs font-mono">
                         <div>
-                          <div className="text-gray-400">Client receives at:</div>
-                          <div className="text-blue-400 break-all">{currentSession.clientAddress}</div>
+                          <div className="text-dark-400">Client receives at:</div>
+                          <div className="text-accent-400 break-all">{currentSession.clientAddress}</div>
                           {clientIdentity && clientIdentity.address !== currentSession.clientAddress && (
                             <div className="text-red-400 mt-1">⚠️ Different from current identity!</div>
                           )}
                         </div>
                         <div>
-                          <div className="text-gray-400">Server receives at:</div>
-                          <div className="text-purple-400 break-all">{currentSession.serverAddress}</div>
+                          <div className="text-dark-400">Server receives at:</div>
+                          <div className="text-cyan-400 break-all">{currentSession.serverAddress}</div>
                           {serverIdentity && serverIdentity.address !== currentSession.serverAddress && (
                             <div className="text-red-400 mt-1">⚠️ Different from current identity!</div>
                           )}
                         </div>
                       </div>
-                      <div className="text-xs text-gray-500 mt-2">
+                      <div className="text-xs text-dark-500 mt-2">
                         Net {currentSession.netBalance >= 0 ? 'positive' : 'negative'}: Server pays Client ${Math.abs(currentSession.netBalance).toFixed(4)} USDC
                       </div>
                     </div>
 
                     {/* Balance Overview */}
                     <div className="grid grid-cols-3 gap-4 mb-6">
-                      <div className="bg-blue-900/30 border border-blue-500/30 rounded-lg p-3 text-center">
-                        <ArrowDown className="w-5 h-5 text-blue-400 mx-auto mb-1" />
-                        <div className="text-xs text-gray-400">Client Paid</div>
-                        <div className="text-lg font-bold text-blue-400">${currentSession.clientPaidTotal.toFixed(4)}</div>
+                      <div className="bg-accent-500/10 border border-accent-500/30 rounded-lg p-3 text-center">
+                        <ArrowDown className="w-5 h-5 text-accent-400 mx-auto mb-1" />
+                        <div className="text-xs text-dark-400">Client Paid</div>
+                        <div className="text-lg font-bold text-accent-400">${currentSession.clientPaidTotal.toFixed(4)}</div>
                       </div>
-                      <div className="bg-purple-900/30 border border-purple-500/30 rounded-lg p-3 text-center">
-                        <ArrowDown className="w-5 h-5 text-purple-400 mx-auto mb-1 rotate-180" />
-                        <div className="text-xs text-gray-400">Server Paid</div>
-                        <div className="text-lg font-bold text-purple-400">${currentSession.serverPaidTotal.toFixed(4)}</div>
+                      <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-center">
+                        <ArrowDown className="w-5 h-5 text-cyan-400 mx-auto mb-1 rotate-180" />
+                        <div className="text-xs text-dark-400">Server Paid</div>
+                        <div className="text-lg font-bold text-cyan-400">${currentSession.serverPaidTotal.toFixed(4)}</div>
                       </div>
-                      <div className={`${currentSession.netBalance >= 0 ? 'bg-green-900/30 border-green-500/30' : 'bg-red-900/30 border-red-500/30'} border rounded-lg p-3 text-center`}>
-                        <Scale className="w-5 h-5 mx-auto mb-1" style={{ color: currentSession.netBalance >= 0 ? '#4ade80' : '#f87171' }} />
-                        <div className="text-xs text-gray-400">Net Balance</div>
-                        <div className={`text-lg font-bold ${currentSession.netBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                      <div className={`${currentSession.netBalance >= 0 ? 'bg-emerald-500/10 border-emerald-500/30' : 'bg-red-500/10 border-red-500/30'} border rounded-lg p-3 text-center`}>
+                        <Scale className="w-5 h-5 mx-auto mb-1" style={{ color: currentSession.netBalance >= 0 ? '#34d399' : '#f87171' }} />
+                        <div className="text-xs text-dark-400">Net Balance</div>
+                        <div className={`text-lg font-bold ${currentSession.netBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                           {currentSession.netBalance >= 0 ? '+' : ''}{currentSession.netBalance.toFixed(4)}
                         </div>
                       </div>
@@ -1413,15 +1392,15 @@ export default function MCPPage() {
 
                     {/* Record Payment */}
                     {currentSession.status !== 'settled' && (
-                      <div className="bg-gray-800/50 rounded-xl p-4 mb-4">
-                        <h4 className="text-sm font-semibold text-gray-300 mb-3">Record Payment</h4>
+                      <div className="bg-dark-800/50 rounded-xl p-4 mb-4">
+                        <h4 className="text-sm font-semibold text-dark-300 mb-3">Record Payment</h4>
                         <div className="flex gap-2 mb-3">
                           <button
                             onClick={() => setPaymentDirection('client')}
                             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                               paymentDirection === 'client'
-                                ? 'bg-blue-600 text-white'
-                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                ? 'bg-accent-600 text-white'
+                                : 'bg-dark-700 text-dark-400 hover:bg-dark-600'
                             }`}
                           >
                             <ArrowRight className="w-4 h-4" />
@@ -1431,8 +1410,8 @@ export default function MCPPage() {
                             onClick={() => setPaymentDirection('server')}
                             className={`flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                               paymentDirection === 'server'
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                                ? 'bg-cyan-600 text-white'
+                                : 'bg-dark-700 text-dark-400 hover:bg-dark-600'
                             }`}
                           >
                             <ArrowRight className="w-4 h-4 rotate-180" />
@@ -1446,12 +1425,12 @@ export default function MCPPage() {
                             onChange={(e) => setPaymentAmount(e.target.value)}
                             placeholder="Amount"
                             step="0.01"
-                            className="flex-1 bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white placeholder-gray-500"
+                            className="input flex-1"
                           />
                           <button
                             onClick={recordPayment}
                             disabled={isProcessingPayment || !paymentAmount}
-                            className="px-4 py-2 rounded-lg bg-green-600 hover:bg-green-500 text-white font-semibold disabled:opacity-50"
+                            className="btn-primary px-4 py-2 disabled:opacity-50"
                           >
                             {isProcessingPayment ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
                           </button>
@@ -1464,7 +1443,7 @@ export default function MCPPage() {
                       <button
                         onClick={settleSession}
                         disabled={isSettling}
-                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white font-semibold transition-all"
+                        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-500 hover:from-emerald-500 hover:to-emerald-400 text-white font-semibold transition-all"
                       >
                         {isSettling ? (
                           <>
@@ -1487,31 +1466,31 @@ export default function MCPPage() {
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="bg-green-900/20 border border-green-500/30 rounded-2xl p-6"
+                    className="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-6"
                   >
                     <div className="flex items-center gap-3 mb-4">
-                      <CheckCircle2 className="w-8 h-8 text-green-400" />
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400" />
                       <div>
-                        <h3 className="text-xl font-bold text-green-400">Session Settled!</h3>
-                        <p className="text-gray-400 text-sm">{settlementResult.totalTransactions} transactions</p>
+                        <h3 className="text-xl font-bold text-emerald-400">Session Settled!</h3>
+                        <p className="text-dark-400 text-sm">{settlementResult.totalTransactions} transactions</p>
                       </div>
                     </div>
-                    <div className="space-y-2 bg-gray-800/50 rounded-lg p-4">
+                    <div className="space-y-2 bg-dark-800/50 rounded-lg p-4">
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Net Amount:</span>
-                        <span className="text-green-400 font-bold">${settlementResult.netAmount.toFixed(4)} USDC</span>
+                        <span className="text-dark-400">Net Amount:</span>
+                        <span className="text-emerald-400 font-bold">${settlementResult.netAmount.toFixed(4)} USDC</span>
                       </div>
                       <div className="flex justify-between">
-                        <span className="text-gray-400">Direction:</span>
+                        <span className="text-dark-400">Direction:</span>
                         <span className="text-white">{settlementResult.direction}</span>
                       </div>
-                      <div className="pt-2 border-t border-gray-700">
-                        <div className="text-xs text-gray-400 mb-1">From:</div>
-                        <div className="text-xs font-mono text-purple-400 break-all">{settlementResult.fromAddress}</div>
+                      <div className="pt-2 border-t border-dark-700">
+                        <div className="text-xs text-dark-400 mb-1">From:</div>
+                        <div className="text-xs font-mono text-cyan-400 break-all">{settlementResult.fromAddress}</div>
                       </div>
                       <div>
-                        <div className="text-xs text-gray-400 mb-1">To:</div>
-                        <div className="text-xs font-mono text-blue-400 break-all">{settlementResult.toAddress}</div>
+                        <div className="text-xs text-dark-400 mb-1">To:</div>
+                        <div className="text-xs font-mono text-accent-400 break-all">{settlementResult.toAddress}</div>
                       </div>
                       {settlementResult.txHash && (
                         <div className="pt-2">
@@ -1519,7 +1498,7 @@ export default function MCPPage() {
                             href={`https://sepolia.basescan.org/tx/${settlementResult.txHash}`}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="flex items-center gap-2 text-xs text-green-400 hover:text-green-300"
+                            className="flex items-center gap-2 text-xs text-emerald-400 hover:text-emerald-300"
                           >
                             <ExternalLink className="w-3 h-3" />
                             View on BaseScan: {settlementResult.txHash.slice(0, 10)}...{settlementResult.txHash.slice(-8)}
@@ -1529,7 +1508,7 @@ export default function MCPPage() {
                     </div>
                     <button
                       onClick={resetAll}
-                      className="mt-4 w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg bg-gray-800 hover:bg-gray-700 text-gray-300 transition-colors"
+                      className="btn-secondary mt-4 w-full flex items-center justify-center gap-2"
                     >
                       <RefreshCw className="w-4 h-4" />
                       Start New Session
@@ -1542,17 +1521,17 @@ export default function MCPPage() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800"
+                    className="card p-6"
                   >
                     <button
                       onClick={() => setShowTransactions(!showTransactions)}
                       className="w-full flex items-center justify-between mb-4"
                     >
                       <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                        <Receipt className="w-5 h-5 text-gray-400" />
+                        <Receipt className="w-5 h-5 text-dark-400" />
                         Transactions ({transactions.length})
                       </h3>
-                      {showTransactions ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                      {showTransactions ? <ChevronUp className="w-5 h-5 text-dark-400" /> : <ChevronDown className="w-5 h-5 text-dark-400" />}
                     </button>
 
                     <AnimatePresence>
@@ -1568,15 +1547,15 @@ export default function MCPPage() {
                               key={tx.id}
                               className={`flex items-center justify-between p-3 rounded-lg ${
                                 tx.payer === 'client'
-                                  ? 'bg-blue-900/20 border border-blue-500/20'
-                                  : 'bg-purple-900/20 border border-purple-500/20'
+                                  ? 'bg-accent-500/10 border border-accent-500/20'
+                                  : 'bg-cyan-500/10 border border-cyan-500/20'
                               }`}
                             >
                               <div className="flex items-center gap-3">
-                                <ArrowRight className={`w-4 h-4 ${tx.payer === 'client' ? 'text-blue-400' : 'text-purple-400 rotate-180'}`} />
+                                <ArrowRight className={`w-4 h-4 ${tx.payer === 'client' ? 'text-accent-400' : 'text-cyan-400 rotate-180'}`} />
                                 <span className="text-sm text-white">{tx.resource}</span>
                               </div>
-                              <span className={`text-sm font-bold ${tx.payer === 'client' ? 'text-blue-400' : 'text-purple-400'}`}>
+                              <span className={`text-sm font-bold ${tx.payer === 'client' ? 'text-accent-400' : 'text-cyan-400'}`}>
                                 ${tx.amount.toFixed(4)}
                               </span>
                             </div>
@@ -1591,19 +1570,19 @@ export default function MCPPage() {
                 <motion.div
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
-                  className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800"
+                  className="card p-6"
                 >
                   <button
                     onClick={toggleSessionHistory}
                     className="w-full flex items-center justify-between"
                   >
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2">
-                      <History className="w-5 h-5 text-orange-400" />
+                      <History className="w-5 h-5 text-amber-400" />
                       Session History
                     </h3>
                     <div className="flex items-center gap-2">
-                      {isLoadingHistory && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
-                      {showSessionHistory ? <ChevronUp className="w-5 h-5 text-gray-400" /> : <ChevronDown className="w-5 h-5 text-gray-400" />}
+                      {isLoadingHistory && <Loader2 className="w-4 h-4 animate-spin text-dark-400" />}
+                      {showSessionHistory ? <ChevronUp className="w-5 h-5 text-dark-400" /> : <ChevronDown className="w-5 h-5 text-dark-400" />}
                     </div>
                   </button>
 
@@ -1616,7 +1595,7 @@ export default function MCPPage() {
                         className="mt-4 space-y-3 overflow-hidden max-h-80 overflow-y-auto"
                       >
                         {sessionHistory.length === 0 ? (
-                          <div className="text-center py-4 text-gray-500">
+                          <div className="text-center py-4 text-dark-500">
                             No sessions found
                           </div>
                         ) : (
@@ -1625,39 +1604,39 @@ export default function MCPPage() {
                               key={session.sessionId}
                               className={`p-3 rounded-lg border ${
                                 session.status === 'settled'
-                                  ? 'bg-green-900/20 border-green-500/30'
-                                  : 'bg-yellow-900/20 border-yellow-500/30'
+                                  ? 'bg-emerald-500/10 border-emerald-500/30'
+                                  : 'bg-amber-500/10 border-amber-500/30'
                               }`}
                             >
                               <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-mono text-gray-400">
+                                <span className="text-xs font-mono text-dark-400">
                                   {session.sessionId.slice(0, 20)}...
                                 </span>
-                                <span className={`text-xs px-2 py-0.5 rounded ${
+                                <span className={`badge ${
                                   session.status === 'settled'
-                                    ? 'bg-green-500/20 text-green-400'
-                                    : 'bg-yellow-500/20 text-yellow-400'
+                                    ? 'badge-success'
+                                    : 'badge-warning'
                                 }`}>
                                   {session.status}
                                 </span>
                               </div>
                               <div className="grid grid-cols-3 gap-2 text-xs">
                                 <div>
-                                  <span className="text-gray-500">Client Paid:</span>
-                                  <span className="text-blue-400 ml-1">${session.clientPaidTotal.toFixed(4)}</span>
+                                  <span className="text-dark-500">Client Paid:</span>
+                                  <span className="text-accent-400 ml-1">${session.clientPaidTotal.toFixed(4)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-500">Server Paid:</span>
-                                  <span className="text-purple-400 ml-1">${session.serverPaidTotal.toFixed(4)}</span>
+                                  <span className="text-dark-500">Server Paid:</span>
+                                  <span className="text-cyan-400 ml-1">${session.serverPaidTotal.toFixed(4)}</span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-500">Net:</span>
-                                  <span className={`ml-1 ${session.netBalance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                                  <span className="text-dark-500">Net:</span>
+                                  <span className={`ml-1 ${session.netBalance >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
                                     ${Math.abs(session.netBalance).toFixed(4)}
                                   </span>
                                 </div>
                               </div>
-                              <div className="mt-2 text-xs text-gray-500">
+                              <div className="mt-2 text-xs text-dark-500">
                                 {new Date(session.createdAt).toLocaleString()}
                               </div>
                             </div>
@@ -1673,38 +1652,38 @@ export default function MCPPage() {
                   <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-purple-900/20 border border-purple-500/30 rounded-2xl p-6"
+                    className="stat-card-accent p-6"
                   >
-                    <h4 className="text-purple-400 font-semibold mb-4 flex items-center gap-2">
+                    <h4 className="text-accent-400 font-semibold mb-4 flex items-center gap-2">
                       <Zap className="w-5 h-5" />
                       How Bilateral Exchange Works
                     </h4>
-                    <div className="space-y-4 text-sm text-gray-300">
+                    <div className="space-y-4 text-sm text-dark-300">
                       <div className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-blue-500/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-blue-400 text-xs font-bold">1</span>
+                        <div className="w-6 h-6 rounded-full bg-accent-500/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-accent-400 text-xs font-bold">1</span>
                         </div>
                         <div>
                           <div className="font-medium text-white">Create Identities</div>
-                          <div className="text-gray-400">Both get wallets with real on-chain balances</div>
+                          <div className="text-dark-400">Both get wallets with real on-chain balances</div>
                         </div>
                       </div>
                       <div className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-purple-500/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-purple-400 text-xs font-bold">2</span>
+                        <div className="w-6 h-6 rounded-full bg-cyan-500/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-cyan-400 text-xs font-bold">2</span>
                         </div>
                         <div>
                           <div className="font-medium text-white">Record Payments</div>
-                          <div className="text-gray-400">Client pays server for tools, server can pay client for data</div>
+                          <div className="text-dark-400">Client pays server for tools, server can pay client for data</div>
                         </div>
                       </div>
                       <div className="flex items-start gap-3">
-                        <div className="w-6 h-6 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
-                          <span className="text-green-400 text-xs font-bold">3</span>
+                        <div className="w-6 h-6 rounded-full bg-emerald-500/20 flex items-center justify-center flex-shrink-0">
+                          <span className="text-emerald-400 text-xs font-bold">3</span>
                         </div>
                         <div>
                           <div className="font-medium text-white">Net Settlement</div>
-                          <div className="text-gray-400">Only the NET difference settles on-chain (saves gas!)</div>
+                          <div className="text-dark-400">Only the NET difference settles on-chain (saves gas!)</div>
                         </div>
                       </div>
                     </div>

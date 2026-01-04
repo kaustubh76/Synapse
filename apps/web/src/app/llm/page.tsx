@@ -4,11 +4,12 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Zap, DollarSign, Clock, Award, TrendingUp, Sparkles, Shield,
-  Wifi, Home, CreditCard, Coins, Wallet, RefreshCw, ExternalLink, Check,
-  Copy, AlertCircle, Trophy, Users, Timer, CheckCircle2, XCircle, Loader2,
-  Target, Scale, ChevronRight
+  Wifi, CreditCard, Coins, RefreshCw, ExternalLink, Check,
+  Copy, AlertCircle, Trophy, Users, Timer, CheckCircle2, Loader2,
+  Target, Scale
 } from 'lucide-react'
 import Link from 'next/link'
+import { PageHeader } from '@/components/PageHeader'
 import {
   API_URL,
   RPC_URL,
@@ -413,90 +414,75 @@ export default function LLMPage() {
   // Show loading state until client-side hydration is complete
   if (!isClient) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-purple-400 border-t-transparent rounded-full animate-spin" />
+      <div className="page-container flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-accent-400 border-t-transparent rounded-full animate-spin" />
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-950 via-purple-950/20 to-gray-950">
+    <div className="page-container">
       {/* Header */}
-      <header className="border-b border-gray-800 bg-gray-900/50 backdrop-blur-xl sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/" className="flex items-center gap-3 hover:opacity-80 transition-opacity">
-              <Brain className="w-8 h-8 text-purple-400" />
-              <div>
-                <h1 className="text-xl font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent">SYNAPSE</h1>
-                <p className="text-xs text-gray-500">Intent-Based LLM Marketplace</p>
-              </div>
-            </Link>
-            <div className="flex items-center gap-4">
-              {/* Wallet Connection */}
-              {walletData ? (
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-purple-900/30 to-blue-900/30 border border-purple-500/30">
-                    <Shield className="w-4 h-4 text-purple-400" />
-                    <span className="text-xs text-purple-300 hidden sm:inline">EigenCloud</span>
-                    <div className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />
-                    <span className="text-sm font-mono text-white">
-                      {walletData.address.slice(0, 6)}...{walletData.address.slice(-4)}
-                    </span>
-                    <button
-                      onClick={copyAddress}
-                      className="p-1 hover:bg-purple-500/20 rounded transition-colors"
-                    >
-                      {copied ? (
-                        <Check className="w-3 h-3 text-green-400" />
-                      ) : (
-                        <Copy className="w-3 h-3 text-gray-400" />
-                      )}
-                    </button>
-                  </div>
-                  {walletBalance && (
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-green-900/30 border border-green-500/30">
-                      <DollarSign className="w-4 h-4 text-green-400" />
-                      <span className="text-sm font-bold text-green-400">{walletBalance.usdc} USDC</span>
-                    </div>
-                  )}
+      <PageHeader
+        title="LLM Marketplace"
+        subtitle="Intent-Based Competition"
+        icon={<Brain className="w-6 h-6" />}
+        rightContent={
+          <div className="flex items-center gap-3">
+            {/* Wallet Connection */}
+            {walletData ? (
+              <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg glass-accent">
+                  <Shield className="w-4 h-4 text-accent-400" />
+                  <span className="text-xs text-accent-300 hidden sm:inline">EigenCloud</span>
+                  <div className="status-dot status-dot-online" />
+                  <span className="text-sm font-mono text-white">
+                    {walletData.address.slice(0, 6)}...{walletData.address.slice(-4)}
+                  </span>
                   <button
-                    onClick={() => fetchWalletBalance(walletData.address)}
-                    className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
-                    title="Refresh balance"
+                    onClick={copyAddress}
+                    className="p-1 hover:bg-accent-500/20 rounded transition-colors"
                   >
-                    <RefreshCw className="w-4 h-4 text-gray-400" />
+                    {copied ? (
+                      <Check className="w-3 h-3 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-3 h-3 text-dark-400" />
+                    )}
                   </button>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 border border-gray-700">
-                  <Loader2 className="w-4 h-4 text-purple-400 animate-spin" />
-                  <span className="text-sm text-gray-400">Loading EigenCloud Wallet...</span>
-                </div>
-              )}
-              <Link
-                href="/"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gray-800 text-gray-400 hover:text-white hover:bg-gray-700 transition-colors text-sm"
-              >
-                <Home className="w-4 h-4" />
-                <span className="hidden sm:inline">Home</span>
-              </Link>
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-full text-sm bg-green-500/20 text-green-400">
-                <Wifi className="w-4 h-4" />
-                <span className="hidden sm:inline">Live</span>
+                {walletBalance && (
+                  <div className="badge badge-success">
+                    <DollarSign className="w-4 h-4 mr-1" />
+                    <span className="font-bold">{walletBalance.usdc} USDC</span>
+                  </div>
+                )}
+                <button
+                  onClick={() => fetchWalletBalance(walletData.address)}
+                  className="btn-ghost p-2"
+                  title="Refresh balance"
+                >
+                  <RefreshCw className="w-4 h-4" />
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="badge badge-accent">
+                <Loader2 className="w-4 h-4 animate-spin mr-1" />
+                <span className="text-sm">Loading Wallet...</span>
+              </div>
+            )}
           </div>
-          {walletError && (
-            <div className="mt-2 flex items-center gap-2 px-3 py-2 rounded-lg bg-red-900/30 border border-red-500/30 text-red-400 text-sm">
-              <AlertCircle className="w-4 h-4" />
-              {walletError}
-            </div>
-          )}
+        }
+      />
+      {walletError && (
+        <div className="max-w-7xl mx-auto px-4 mt-2">
+          <div className="badge badge-error w-full justify-center py-2">
+            <AlertCircle className="w-4 h-4 mr-2" />
+            {walletError}
+          </div>
         </div>
-      </header>
+      )}
 
-      <main className="max-w-7xl mx-auto px-4 py-8">
+      <main className="page-content">
         {/* Hero Section */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -504,12 +490,12 @@ export default function LLMPage() {
           className="text-center mb-12"
         >
           <div className="flex items-center justify-center gap-3 mb-4">
-            <Target className="w-10 h-10 text-purple-400" />
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-purple-400 via-pink-400 to-blue-400 bg-clip-text text-transparent">
+            <Target className="w-10 h-10 text-accent-400" />
+            <h1 className="text-4xl md:text-5xl font-bold gradient-text">
               Intent-Based LLM Marketplace
             </h1>
           </div>
-          <p className="text-gray-400 text-lg max-w-3xl mx-auto">
+          <p className="text-dark-400 text-lg max-w-3xl mx-auto">
             LLMs compete for your prompt. View all responses, compare scores, and pay only when you select your preferred answer.
           </p>
         </motion.div>
@@ -519,18 +505,18 @@ export default function LLMPage() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="bg-gradient-to-br from-purple-900/30 to-gray-900/50 rounded-2xl p-6 border border-purple-500/30 mb-8"
+            className="stat-card-accent p-6 mb-8"
           >
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <Shield className="w-6 h-6 text-purple-400" />
+                <Shield className="w-6 h-6 text-accent-400" />
                 <h3 className="text-lg font-semibold text-white">Your Credit Profile</h3>
               </div>
               <Link
                 href="/credit"
-                className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 transition-colors text-sm font-medium"
+                className="btn-primary text-sm"
               >
-                <CreditCard className="w-4 h-4" />
+                <CreditCard className="w-4 h-4 mr-2" />
                 Full Dashboard
               </Link>
             </div>
@@ -552,8 +538,8 @@ export default function LLMPage() {
                     cy="50"
                     r="40"
                     fill="none"
-                    stroke={creditProfile.creditTier === 'exceptional' ? '#a855f7' :
-                            creditProfile.creditTier === 'excellent' ? '#3b82f6' :
+                    stroke={creditProfile.creditTier === 'exceptional' ? '#06b6d4' :
+                            creditProfile.creditTier === 'excellent' ? '#22d3ee' :
                             creditProfile.creditTier === 'good' ? '#22c55e' :
                             creditProfile.creditTier === 'fair' ? '#eab308' : '#ef4444'}
                     strokeWidth="8"
@@ -569,21 +555,21 @@ export default function LLMPage() {
               </div>
 
               <div className="flex-1 grid grid-cols-3 gap-3">
-                <div className="bg-gray-900/50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-gray-400 mb-1">Tier</div>
+                <div className="bg-dark-900/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-dark-400 mb-1">Tier</div>
                   <div className={`text-lg font-bold capitalize ${getTierColor(creditProfile.creditTier)}`}>
                     {creditProfile.creditTier}
                   </div>
                 </div>
-                <div className="bg-gray-900/50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-gray-400 mb-1">Discount</div>
-                  <div className="text-lg font-bold text-green-400">
+                <div className="bg-dark-900/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-dark-400 mb-1">Discount</div>
+                  <div className="text-lg font-bold text-emerald-400">
                     {((creditProfile.tierDiscount ?? 0) * 100).toFixed(0)}% OFF
                   </div>
                 </div>
-                <div className="bg-gray-900/50 rounded-lg p-3 text-center">
-                  <div className="text-xs text-gray-400 mb-1">Available Credit</div>
-                  <div className="text-lg font-bold text-blue-400">
+                <div className="bg-dark-900/50 rounded-lg p-3 text-center">
+                  <div className="text-xs text-dark-400 mb-1">Available Credit</div>
+                  <div className="text-lg font-bold text-accent-400">
                     ${creditProfile.availableCredit?.toFixed(0) ?? '0'}
                   </div>
                 </div>
@@ -591,10 +577,10 @@ export default function LLMPage() {
             </div>
 
             {/* Progress to next tier */}
-            <div className="bg-gray-900/50 rounded-lg p-3">
+            <div className="bg-dark-900/50 rounded-lg p-3">
               <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-gray-400">Progress to next tier</span>
-                <span className="text-purple-400 font-medium">
+                <span className="text-dark-400">Progress to next tier</span>
+                <span className="text-accent-400 font-medium">
                   {creditProfile.creditTier === 'exceptional' ? 'Max tier reached!' :
                    creditProfile.creditTier === 'excellent' ? `${800 - creditProfile.creditScore} pts to Exceptional` :
                    creditProfile.creditTier === 'good' ? `${740 - creditProfile.creditScore} pts to Excellent` :
@@ -602,14 +588,9 @@ export default function LLMPage() {
                    `${580 - creditProfile.creditScore} pts to Fair`}
                 </span>
               </div>
-              <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
+              <div className="progress-bar">
                 <div
-                  className={`h-full transition-all duration-500 ${
-                    creditProfile.creditTier === 'exceptional' ? 'bg-purple-500' :
-                    creditProfile.creditTier === 'excellent' ? 'bg-blue-500' :
-                    creditProfile.creditTier === 'good' ? 'bg-green-500' :
-                    creditProfile.creditTier === 'fair' ? 'bg-yellow-500' : 'bg-red-500'
-                  }`}
+                  className="progress-fill"
                   style={{
                     width: `${creditProfile.creditTier === 'exceptional' ? 100 :
                              creditProfile.creditTier === 'excellent' ? ((creditProfile.creditScore - 740) / 60) * 100 :
@@ -631,49 +612,45 @@ export default function LLMPage() {
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-6 border border-gray-800"
+              className="card p-6"
             >
               <h2 className="text-xl font-semibold mb-4 flex items-center gap-2 text-white">
-                <Scale className="w-5 h-5 text-purple-400" />
+                <Scale className="w-5 h-5 text-accent-400" />
                 Create Intent - LLMs Compete for Your Prompt
               </h2>
 
               <div className="space-y-4">
                 {/* EigenCloud Wallet Info */}
                 {walletData && (
-                  <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4 flex items-center gap-3">
-                    <Shield className="w-5 h-5 text-purple-400" />
+                  <div className="glass-accent rounded-xl p-4 flex items-center gap-3">
+                    <Shield className="w-5 h-5 text-accent-400" />
                     <div>
-                      <span className="text-purple-400 font-medium">EigenCloud Wallet Connected</span>
-                      <span className="text-gray-400 ml-2 font-mono text-sm">
+                      <span className="text-accent-400 font-medium">EigenCloud Wallet Connected</span>
+                      <span className="text-dark-400 ml-2 font-mono text-sm">
                         {walletData.address.slice(0, 6)}...{walletData.address.slice(-4)}
                       </span>
                       {walletBalance && (
-                        <span className="text-green-400 ml-3 font-bold">${walletBalance.usdc} USDC</span>
+                        <span className="text-emerald-400 ml-3 font-bold">${walletBalance.usdc} USDC</span>
                       )}
                     </div>
                   </div>
                 )}
                 {!walletData && (
-                  <div className="bg-gray-900/50 border border-gray-700 rounded-xl p-4 flex items-center gap-3">
-                    <Loader2 className="w-5 h-5 text-purple-400 animate-spin" />
-                    <span className="text-gray-400">Loading EigenCloud wallet...</span>
+                  <div className="card p-4 flex items-center gap-3">
+                    <Loader2 className="w-5 h-5 text-accent-400 animate-spin" />
+                    <span className="text-dark-400">Loading EigenCloud wallet...</span>
                   </div>
                 )}
 
                 {/* Model Tier Selection */}
                 <div>
-                  <label className="text-sm text-gray-400 mb-2 block">Model Tier</label>
+                  <label className="text-sm text-dark-400 mb-2 block">Model Tier</label>
                   <div className="grid grid-cols-4 gap-2">
                     {(['premium', 'standard', 'budget', 'all'] as const).map((tier) => (
                       <button
                         key={tier}
                         onClick={() => setModelTier(tier)}
-                        className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                          modelTier === tier
-                            ? 'bg-purple-600 text-white'
-                            : 'bg-gray-800 text-gray-400 hover:bg-gray-700'
-                        }`}
+                        className={`tab ${modelTier === tier ? 'tab-active' : ''}`}
                       >
                         {tier.charAt(0).toUpperCase() + tier.slice(1)}
                       </button>
@@ -683,41 +660,41 @@ export default function LLMPage() {
 
                 {/* Prompt Input */}
                 <div>
-                  <label className="text-sm text-gray-400 mb-2 block">Your Prompt</label>
+                  <label className="text-sm text-dark-400 mb-2 block">Your Prompt</label>
                   <textarea
                     value={prompt}
                     onChange={(e) => setPrompt(e.target.value)}
                     placeholder="Enter your prompt... LLMs will compete to give you the best answer"
-                    className="w-full bg-gray-800/50 border border-gray-700 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 transition-all min-h-[120px] resize-none"
+                    className="input min-h-[120px] resize-none"
                   />
                 </div>
 
                 {/* How it works */}
-                <div className="bg-purple-900/20 border border-purple-500/30 rounded-xl p-4">
-                  <h4 className="text-purple-400 font-semibold mb-2 flex items-center gap-2">
+                <div className="glass-accent rounded-xl p-4">
+                  <h4 className="text-accent-400 font-semibold mb-2 flex items-center gap-2">
                     <Sparkles className="w-4 h-4" />
                     How Intent-Based Selection Works
                   </h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-300">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-dark-300">
                     <div className="flex items-start gap-2">
-                      <Users className="w-5 h-5 text-blue-400 mt-0.5" />
+                      <Users className="w-5 h-5 text-accent-400 mt-0.5" />
                       <div>
                         <div className="font-medium text-white">1. LLMs Compete</div>
-                        <div className="text-gray-400">Multiple models generate responses as competing bids</div>
+                        <div className="text-dark-400">Multiple models generate responses as competing bids</div>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">
-                      <Trophy className="w-5 h-5 text-yellow-400 mt-0.5" />
+                      <Trophy className="w-5 h-5 text-amber-400 mt-0.5" />
                       <div>
                         <div className="font-medium text-white">2. You Review</div>
-                        <div className="text-gray-400">Compare responses, quality scores, and costs</div>
+                        <div className="text-dark-400">Compare responses, quality scores, and costs</div>
                       </div>
                     </div>
                     <div className="flex items-start gap-2">
-                      <Coins className="w-5 h-5 text-green-400 mt-0.5" />
+                      <Coins className="w-5 h-5 text-emerald-400 mt-0.5" />
                       <div>
                         <div className="font-medium text-white">3. Pay on Selection</div>
-                        <div className="text-gray-400">x402 payment only when you choose your preferred answer</div>
+                        <div className="text-dark-400">x402 payment only when you choose your preferred answer</div>
                       </div>
                     </div>
                   </div>
@@ -729,8 +706,8 @@ export default function LLMPage() {
                   disabled={isLoading || !prompt.trim() || !walletData}
                   className={`w-full flex items-center justify-center gap-2 px-6 py-4 rounded-xl font-semibold text-lg transition-all ${
                     isLoading || !prompt.trim() || !walletData
-                      ? 'bg-gray-700 text-gray-400 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-purple-500 to-blue-500 hover:from-purple-400 hover:to-blue-400 text-white shadow-lg shadow-purple-500/20'
+                      ? 'bg-dark-700 text-dark-400 cursor-not-allowed'
+                      : 'btn-glow'
                   }`}
                 >
                   {isLoading ? (
@@ -756,19 +733,19 @@ export default function LLMPage() {
               initial={{ opacity: 0, scale: 0.95 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-gray-900/50 backdrop-blur-xl rounded-2xl p-8 border border-gray-800 text-center"
+              className="card p-8 text-center"
             >
               <div className="flex flex-col items-center gap-4">
                 <div className="relative">
-                  <div className="w-20 h-20 border-4 border-purple-500/30 rounded-full animate-spin border-t-purple-500" />
-                  <Brain className="w-10 h-10 text-purple-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
+                  <div className="w-20 h-20 border-4 border-accent-500/30 rounded-full animate-spin border-t-accent-500" />
+                  <Brain className="w-10 h-10 text-accent-400 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                 </div>
                 <h3 className="text-2xl font-bold text-white">LLMs are Competing</h3>
-                <p className="text-gray-400 max-w-md">
+                <p className="text-dark-400 max-w-md">
                   Multiple AI models are generating responses to your prompt.
                   They will compete based on quality, speed, and cost.
                 </p>
-                <div className="flex items-center gap-2 text-purple-400">
+                <div className="flex items-center gap-2 text-accent-400">
                   <Timer className="w-5 h-5" />
                   <span>Collecting bids...</span>
                 </div>
@@ -1065,8 +1042,8 @@ export default function LLMPage() {
             animate={{ opacity: 1 }}
             className="text-center py-8 mt-8"
           >
-            <Brain className="w-16 h-16 text-gray-700 mx-auto mb-4" />
-            <p className="text-gray-500">
+            <Brain className="w-16 h-16 text-dark-700 mx-auto mb-4" />
+            <p className="text-dark-500">
               Enter a prompt above to start the LLM competition
             </p>
           </motion.div>

@@ -868,7 +868,10 @@ router.post('/credit/:agentId/payment', async (req: Request, res: Response) => {
     const { agentId } = req.params;
     const { amount, onTime = true, txHash, blockNumber } = req.body;
 
+    console.log(`[Credit API] Recording payment: $${amount} USDC for agent ${agentId.slice(0, 10)}...`);
+
     if (!amount || amount <= 0) {
+      console.log(`[Credit API] Invalid amount: ${amount}`);
       return res.status(400).json({
         success: false,
         error: {
@@ -883,11 +886,14 @@ router.post('/credit/:agentId/payment', async (req: Request, res: Response) => {
 
     const updatedProfile = await scorer.getProfile(agentId);
 
+    console.log(`[Credit API] Payment recorded successfully. New score: ${updatedProfile?.creditScore}, Tier: ${updatedProfile?.creditTier}`);
+
     res.json({
       success: true,
       data: updatedProfile,
     });
   } catch (error) {
+    console.error('[Credit API] Payment recording error:', error);
     res.status(500).json({
       success: false,
       error: {

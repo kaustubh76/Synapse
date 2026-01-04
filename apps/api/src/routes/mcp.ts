@@ -1001,6 +1001,16 @@ router.post('/bilateral/:sessionId/settle', async (req: Request, res: Response) 
     // Execute real on-chain settlement
     const result = await manager.settleSessionWithPayment(sessionId, payerPrivateKey);
 
+    // Log settlement success with full details
+    console.log(`[MCP Settle] Settlement complete for session ${sessionId}:`);
+    console.log(`[MCP Settle]   TX Hash: ${result.txHash}`);
+    console.log(`[MCP Settle]   Block: ${result.blockNumber}`);
+    console.log(`[MCP Settle]   Amount: $${result.netAmount} USDC`);
+    console.log(`[MCP Settle]   Direction: ${result.direction}`);
+    console.log(`[MCP Settle]   From: ${result.from}`);
+    console.log(`[MCP Settle]   To: ${result.to}`);
+    console.log(`[MCP Settle]   Explorer: ${result.explorerUrl}`);
+
     res.json({
       success: true,
       data: {
