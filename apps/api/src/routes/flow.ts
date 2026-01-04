@@ -38,6 +38,42 @@ const getPlatformWallet = () => process.env.PLATFORM_WALLET || process.env.SYNAP
 // Enable real transfers (default to true when EIGENCLOUD_PRIVATE_KEY is set)
 const useRealTransfers = () => process.env.USE_REAL_TRANSFERS !== 'false' && !!getEigencloudPrivateKey();
 
+// Dynamic pricing configuration (can be overridden by env vars)
+const FLOW_PRICING = {
+  llmSelection: {
+    premium: parseFloat(process.env.FLOW_LLM_PREMIUM_PRICE || '0.01'),    // $0.01 for premium
+    standard: parseFloat(process.env.FLOW_LLM_STANDARD_PRICE || '0.005'), // $0.005 for standard
+    budget: parseFloat(process.env.FLOW_LLM_BUDGET_PRICE || '0.002'),     // $0.002 for budget
+  },
+  tools: {
+    weather: parseFloat(process.env.FLOW_TOOL_WEATHER_PRICE || '0.002'),
+    crypto: parseFloat(process.env.FLOW_TOOL_CRYPTO_PRICE || '0.003'),
+    news: parseFloat(process.env.FLOW_TOOL_NEWS_PRICE || '0.002'),
+    default: parseFloat(process.env.FLOW_TOOL_DEFAULT_PRICE || '0.002'),
+  },
+};
+
+// Helper to get tool cost based on tool name
+const getToolCost = (toolName: string): number => {
+  if (toolName.includes('weather')) return FLOW_PRICING.tools.weather;
+  if (toolName.includes('crypto')) return FLOW_PRICING.tools.crypto;
+  if (toolName.includes('news')) return FLOW_PRICING.tools.news;
+  return FLOW_PRICING.tools.default;
+};
+
+// Helper to get LLM selection cost based on model tier
+const getLLMSelectionCost = (modelId?: string): number => {
+  if (!modelId) return FLOW_PRICING.llmSelection.standard;
+  const modelLower = modelId.toLowerCase();
+  if (modelLower.includes('gpt-4') || modelLower.includes('opus') || modelLower.includes('pro')) {
+    return FLOW_PRICING.llmSelection.premium;
+  }
+  if (modelLower.includes('gpt-3') || modelLower.includes('haiku') || modelLower.includes('flash')) {
+    return FLOW_PRICING.llmSelection.budget;
+  }
+  return FLOW_PRICING.llmSelection.standard;
+};
+
 // Flow session storage
 const flowSessions = new Map<string, FlowSession>();
 
@@ -269,8 +305,8 @@ router.post('/:flowId/select', async (req: Request, res: Response) => {
     const llmBridge = getLLMIntentBridge();
     const bilateralManager = getBilateralSessionManager();
 
-    // Select model
-    const selectionCost = 0.005; // Fixed selection cost
+    // Select model with dynamic pricing based on model tier
+    const selectionCost = getLLMSelectionCost(modelId);
     let paymentVerified = false;
     let blockNumber: number | undefined;
 
@@ -392,8 +428,8 @@ router.post('/:flowId/tool', async (req: Request, res: Response) => {
     const toolIntent = await mcpBridge.createToolIntent(toolRequest);
     flowSession.toolIntentIds.push(toolIntent.id);
 
-    // Tool execution cost
-    const toolCost = 0.001;
+    // Tool execution cost based on tool type
+    const toolCost = getToolCost(toolName);
     let paymentVerified = false;
     let blockNumber: number | undefined;
 
@@ -673,7 +709,8 @@ router.post('/execute', async (req: Request, res: Response) => {
         clientAddress: identity.address,
       });
 
-      const toolCost = 0.001;
+      // Dynamic pricing based on tool type
+      const toolCost = getToolCost(tool.name);
 
       // Execute real USDC payment for tool usage
       const toolPayment = await executeUSDCPayment(toolCost, `Tool: ${tool.name}`);
@@ -1038,7 +1075,8 @@ router.post('/:flowId/select-and-pay', async (req: Request, res: Response) => {
       });
     }
 
-    const selectionCost = 0.005;
+    // Dynamic pricing based on model tier
+    const selectionCost = getLLMSelectionCost(modelId);
 
     // Check balance
     const balance = await eigenWallet.getBalance();
@@ -1179,7 +1217,8 @@ router.post('/:flowId/tool-and-pay', async (req: Request, res: Response) => {
       });
     }
 
-    const toolCost = 0.001;
+    // Dynamic pricing based on tool type
+    const toolCost = getToolCost(toolName);
 
     // Check balance
     const balance = await eigenWallet.getBalance();
@@ -1194,7 +1233,7 @@ router.post('/:flowId/tool-and-pay', async (req: Request, res: Response) => {
       });
     }
 
-    console.log(`[Flow API] Executing tool-and-pay for ${toolName}`);
+    console.log(`[Flow API] Executing tool-and-pay for ${toolName} (cost: $${toolCost})`);
 
     // Execute payment
     const paymentResult = await eigenWallet.payToPlatform(toolCost, toolName);

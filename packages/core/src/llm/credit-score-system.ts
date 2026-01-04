@@ -123,35 +123,38 @@ export class AgentCreditScorer extends EventEmitter {
       return this.profiles.get(agentId)!;
     }
 
-    // Create new profile with default score
+    // Create new profile with realistic starting score
+    // New agents start in 'fair' tier and must build credit through payments
     const profile: AgentCreditProfile = {
       agentId,
       address,
-      creditScore: 650, // Start at 'good' tier
-      creditTier: 'good',
+      creditScore: 550, // Start at 'fair' tier - must build credit
+      creditTier: 'fair',
       lastScoreUpdate: Date.now(),
-      unsecuredCreditLimit: 1000, // $1000 starting limit
-      dailySpendLimit: 100,
-      monthlySpendLimit: 1000,
+      unsecuredCreditLimit: 200, // $200 starting limit for fair tier
+      dailySpendLimit: 20,
+      monthlySpendLimit: 200,
       currentDailySpend: 0,
       currentMonthlySpend: 0,
       currentBalance: 0,
-      availableCredit: 1000,
+      availableCredit: 200,
       totalTransactions: 0,
       successfulPayments: 0,
       latePayments: 0,
       defaults: 0,
       accountAge: 0,
+      totalAmountPaid: 0,    // Track cumulative payments
+      totalAmountOwed: 0,    // Track cumulative credit used
       factors: {
-        paymentHistory: 100,
-        creditUtilization: 100,
-        accountAge: 40,
-        creditMix: 60,
-        recentActivity: 80,
+        paymentHistory: 50,   // Neutral start (was 100)
+        creditUtilization: 100, // No balance = good
+        accountAge: 30,       // New account (was 40)
+        creditMix: 40,        // No variety yet (was 60)
+        recentActivity: 50,   // No history (was 80)
       },
       stakedAmount: 0,
       collateralRatio: 0,
-      tierDiscount: CREDIT_TIER_CONFIG.good.rateDiscount,
+      tierDiscount: CREDIT_TIER_CONFIG.fair.rateDiscount,
     };
 
     this.profiles.set(agentId, profile);
@@ -192,14 +195,23 @@ export class AgentCreditScorer extends EventEmitter {
   // -------------------- FACTOR CALCULATIONS --------------------
 
   private calculatePaymentHistoryScore(profile: AgentCreditProfile): number {
-    if (profile.totalTransactions === 0) return 100;
+    // New accounts start neutral, not perfect
+    if (profile.totalTransactions === 0) return 50;
 
-    const successRate = profile.successfulPayments / profile.totalTransactions;
-    const lateRate = profile.latePayments / profile.totalTransactions;
-    const defaultRate = profile.defaults / profile.totalTransactions;
+    const totalTxns = profile.totalTransactions;
+    const successRate = profile.successfulPayments / totalTxns;
+    const lateRate = profile.latePayments / totalTxns;
+    const defaultRate = profile.defaults / totalTxns;
 
-    // Perfect payment = 100, late payments hurt, defaults hurt more
-    let score = 100;
+    // Calculate repayment ratio - how much of borrowed amount has been paid back
+    const totalOwed = profile.totalAmountOwed || 1; // Avoid division by zero
+    const repaymentRatio = Math.min(1, (profile.totalAmountPaid || 0) / totalOwed);
+
+    // Combined score: 60% success rate + 40% repayment ratio
+    // This means large payments matter more than many small ones
+    let score = (successRate * 0.6 + repaymentRatio * 0.4) * 100;
+
+    // Penalties for late payments and defaults
     score -= lateRate * 30; // Late payment reduces score by up to 30 points
     score -= defaultRate * 70; // Default reduces score by up to 70 points
 
@@ -280,14 +292,22 @@ export class AgentCreditScorer extends EventEmitter {
 
     // Calculate new score
     const oldScore = profile.creditScore;
-    const newScore = this.calculateCreditScore(profile);
+    const calculatedScore = this.calculateCreditScore(profile);
+
+    // Cap score increase to prevent gaming with small payments
+    // Maximum increase of 15 points per payment, with bonus for large payments
+    const maxIncrease = 15 + Math.min(10, Math.floor((profile.totalAmountPaid || 0) / 10));
+    const cappedScore = Math.min(calculatedScore, oldScore + maxIncrease);
+
+    // Allow decreases without cap (late payments, defaults should hurt immediately)
+    const newScore = calculatedScore < oldScore ? calculatedScore : cappedScore;
 
     profile.creditScore = newScore;
     profile.lastScoreUpdate = Date.now();
 
-    // Update tier
+    // Update tier with minimum payment requirements
     const oldTier = profile.creditTier;
-    profile.creditTier = this.getCreditTier(newScore);
+    profile.creditTier = this.getCreditTier(newScore, profile);
 
     // Update limits based on tier
     const tierConfig = CREDIT_TIER_CONFIG[profile.creditTier];
@@ -311,11 +331,24 @@ export class AgentCreditScorer extends EventEmitter {
     return profile;
   }
 
-  private getCreditTier(score: number): CreditTier {
-    if (score >= 800) return 'exceptional';
-    if (score >= 740) return 'excellent';
-    if (score >= 670) return 'good';
+  private getCreditTier(score: number, profile?: AgentCreditProfile): CreditTier {
+    // Require minimum successful payments and amounts for higher tiers
+    // This prevents gaming the system with a single payment
+    const payments = profile?.successfulPayments || 0;
+    const totalPaid = profile?.totalAmountPaid || 0;
+
+    // Exceptional: score >= 800, at least 10 payments, $50+ total paid
+    if (score >= 800 && payments >= 10 && totalPaid >= 50) return 'exceptional';
+
+    // Excellent: score >= 740, at least 5 payments, $20+ total paid
+    if (score >= 740 && payments >= 5 && totalPaid >= 20) return 'excellent';
+
+    // Good: score >= 670, at least 2 payments, $5+ total paid
+    if (score >= 670 && payments >= 2 && totalPaid >= 5) return 'good';
+
+    // Fair: score >= 580
     if (score >= 580) return 'fair';
+
     return 'subprime';
   }
 
@@ -360,6 +393,7 @@ export class AgentCreditScorer extends EventEmitter {
     profile.currentMonthlySpend += amount;
     profile.availableCredit -= amount;
     profile.totalTransactions++;
+    profile.totalAmountOwed = (profile.totalAmountOwed || 0) + amount; // Track total borrowed
 
     // Store transaction
     const txns = this.transactions.get(agentId) || [];
@@ -402,6 +436,7 @@ export class AgentCreditScorer extends EventEmitter {
     // Update profile
     profile.currentBalance = Math.max(0, profile.currentBalance - amount);
     profile.availableCredit = profile.unsecuredCreditLimit - profile.currentBalance;
+    profile.totalAmountPaid = (profile.totalAmountPaid || 0) + amount; // Track cumulative payments
 
     if (onTime) {
       profile.successfulPayments++;

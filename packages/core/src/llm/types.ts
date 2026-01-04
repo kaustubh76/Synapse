@@ -304,6 +304,10 @@ export interface AgentCreditProfile {
   defaults: number;
   accountAge: number;                   // Days since first transaction
 
+  // Amount Tracking (for realistic score calculation)
+  totalAmountPaid: number;              // Cumulative amount paid back
+  totalAmountOwed: number;              // Cumulative amount borrowed/used
+
   // Factors (0-100 each)
   factors: CreditFactors;
 
