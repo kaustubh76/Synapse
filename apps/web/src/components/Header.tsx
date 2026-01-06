@@ -2,7 +2,7 @@
 
 import { motion } from 'framer-motion'
 import Link from 'next/link'
-import { Brain, Wifi, WifiOff, Github, LayoutDashboard, Sparkles, Plug, Zap } from 'lucide-react'
+import { Brain, Wifi, WifiOff, Github, LayoutDashboard, Sparkles, Plug, Zap, Coins } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { WalletButton } from '@/components/WalletButton'
 import { useWalletContext } from '@/hooks/useWallet'
@@ -12,7 +12,18 @@ interface HeaderProps {
 }
 
 export function Header({ isConnected }: HeaderProps) {
-  const wallet = useWalletContext()
+  const walletContext = useWalletContext()
+
+  // Provide safe defaults if context is undefined
+  const wallet = walletContext ?? {
+    wallet: null,
+    balance: '0.00',
+    isConnecting: false,
+    isConnected: false,
+    connect: async () => {},
+    disconnect: () => {},
+    refreshBalance: async () => {},
+  }
 
   return (
     <header className="glass-dark border-b border-dark-700/50 sticky top-0 z-50">
@@ -65,6 +76,15 @@ export function Header({ isConnected }: HeaderProps) {
             >
               <Sparkles className="w-4 h-4" />
               <span className="text-sm hidden sm:inline">LLM Compare</span>
+            </Link>
+
+            {/* DeFi Link */}
+            <Link
+              href="/defi"
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-gradient-to-r from-emerald-600/50 to-cyan-600/50 text-emerald-400 hover:text-emerald-300 hover:from-emerald-600/70 hover:to-cyan-600/70 transition-colors border border-emerald-500/30"
+            >
+              <Coins className="w-4 h-4" />
+              <span className="text-sm hidden sm:inline">DeFi</span>
             </Link>
 
             {/* Dashboard Link */}
