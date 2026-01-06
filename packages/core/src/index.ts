@@ -109,8 +109,7 @@ export {
 
 export {
   X402Client,
-  createX402Client,
-  createDemoX402Client
+  createX402Client
 } from './x402/x402-client.js';
 
 export {
@@ -202,6 +201,9 @@ export * from './mcp/index.js';
 
 // Real Tool Providers (Weather, Crypto, News APIs)
 export * from './tools/index.js';
+
+// DeFi Module (Liquidity Pools, Credit Lending, Flash Loans, Insurance, Staking, Yield)
+export * from './defi/index.js';
 
 // Configuration Validation
 export {
