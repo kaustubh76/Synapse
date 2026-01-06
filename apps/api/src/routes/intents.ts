@@ -78,8 +78,15 @@ export function setupIntentRoutes(
 
       // Get client address from header or body
       const clientAddress = req.headers['x-client-address'] as string ||
-                           req.body.clientAddress ||
-                           '0xDemoClient';
+                           req.body.clientAddress;
+
+      if (!clientAddress) {
+        return res.status(400).json({
+          success: false,
+          error: { code: 'MISSING_ADDRESS', message: 'Client address is required' },
+          timestamp: Date.now()
+        } as ApiResponse<never>);
+      }
 
       const intent = intentEngine.createIntent(
         validation.data as CreateIntentRequest,

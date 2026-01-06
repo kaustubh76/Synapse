@@ -382,49 +382,6 @@ export class X402Client extends EventEmitter<X402ClientEvents> {
 }
 
 // ============================================================
-// DEMO WALLET FOR TESTING
-// ============================================================
-
-/**
- * Create a demo wallet for testing
- */
-export function createDemoWallet(address?: string): X402Wallet {
-  const walletAddress = address || `0x${Array.from({ length: 40 }, () =>
-    Math.floor(Math.random() * 16).toString(16)
-  ).join('')}`;
-
-  return {
-    address: walletAddress,
-    chainId: 84532, // Base Sepolia
-
-    async signTypedData(domain, types, value) {
-      // Create a deterministic demo signature
-      const dataStr = JSON.stringify({ domain, types, value });
-      const hash = Array.from(dataStr).reduce((acc, char) => {
-        return ((acc << 5) - acc) + char.charCodeAt(0);
-      }, 0);
-
-      return `0x${Math.abs(hash).toString(16).padStart(64, '0')}${'0'.repeat(66)}`;
-    },
-
-    async getTokenBalance(tokenAddress: string) {
-      // Demo balance of 100 USDC
-      return BigInt(100_000_000);
-    },
-  };
-}
-
-/**
- * Create an x402 client with demo wallet
- */
-export function createDemoX402Client(network: X402Network = 'base-sepolia'): X402Client {
-  return new X402Client({
-    wallet: createDemoWallet(),
-    defaultNetwork: network,
-    demoMode: true,
-  });
-}
-
 // ============================================================
 // FACTORY FUNCTIONS
 // ============================================================

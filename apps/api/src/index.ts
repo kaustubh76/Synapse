@@ -33,10 +33,10 @@ import llmRoutes from './routes/llm.js';
 import { setupMCPRoutes } from './routes/mcp.js';
 import { setupFlowRoutes } from './routes/flow.js';
 import { setupPaymentVerificationRoutes } from './routes/payment-verification.js';
+import defiRoutes from './routes/defi.js';
 import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
 import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine, getAgentCreditScorer, validateAllConfig } from '@synapse/core';
-import { seedDemoProviders } from './seed/demo-providers.js';
 
 const PORT = process.env.PORT || 3001;
 const ALLOWED_ORIGINS = [
@@ -135,7 +135,7 @@ async function main() {
         intentsFailed: totalIntentsFailed,
         totalVolume: totalVolume,
         avgResponseTime: avgResponseTime,
-        avgSavings: 35, // Average savings percentage (demo value)
+        avgSavings: 0, // Calculated from actual provider data
         successRate: successRate,
         avgReputation: providerStats.avgReputation,
         capabilityCounts: providerStats.capabilityCounts
@@ -198,19 +198,13 @@ async function main() {
   await setupMCPRoutes(app, io);
   setupFlowRoutes(app, io);
   setupPaymentVerificationRoutes(app);
+  app.use('/api/defi', defiRoutes);
 
   // Setup WebSocket handlers
   setupWebSocket(io, intentEngine, providerRegistry);
 
   // Setup engine event broadcasting
   setupEngineEvents(intentEngine, providerRegistry, io);
-
-  // Seed demo providers for testing (disable with SKIP_DEMO_PROVIDERS=true)
-  if (process.env.SKIP_DEMO_PROVIDERS === 'true') {
-    console.log('⏭️  Skipping demo provider seeding (SKIP_DEMO_PROVIDERS=true)');
-  } else {
-    seedDemoProviders(providerRegistry);
-  }
 
   // Wallet configuration warnings
   if (!process.env.EIGENCLOUD_PRIVATE_KEY) {
@@ -290,6 +284,15 @@ async function main() {
 ║   • POST /api/mcp/intent/create    - Create tool intent            ║
 ║   • POST /api/mcp/bilateral/create - Create bilateral session      ║
 ║   • POST /api/mcp/bilateral/:id/settle - Settle session            ║
+║                                                                    ║
+║   💰 DeFi Module (Agent Economy):                                  ║
+║   • GET  /api/defi/stats           - System-wide DeFi stats        ║
+║   • GET  /api/defi/pools           - List liquidity pools          ║
+║   • POST /api/defi/pools/:id/deposit - Deposit to pool             ║
+║   • POST /api/defi/credit/borrow   - Borrow against credit         ║
+║   • POST /api/defi/flash/execute   - Execute flash loan            ║
+║   • POST /api/defi/staking/stake   - Stake as provider             ║
+║   • GET  /api/defi/strategies      - List yield strategies         ║
 ║                                                                    ║
 ╚════════════════════════════════════════════════════════════════════╝
     `);

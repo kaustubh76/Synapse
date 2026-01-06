@@ -95,7 +95,9 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
    * Get USDC balance for an address
    */
   async getUSDCBalance(address: string): Promise<number> {
-    const balance = await this.usdcContract.balanceOf(address);
+    // Normalize address to prevent ENS resolution on networks that don't support it
+    const checksumAddress = ethers.getAddress(address);
+    const balance = await this.usdcContract.balanceOf(checksumAddress);
     return Number(balance) / Math.pow(10, USDC_DECIMALS);
   }
 
@@ -103,7 +105,9 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
    * Get ETH balance for an address
    */
   async getETHBalance(address: string): Promise<number> {
-    const balance = await this.provider.getBalance(address);
+    // Normalize address to prevent ENS resolution on networks that don't support it
+    const checksumAddress = ethers.getAddress(address);
+    const balance = await this.provider.getBalance(checksumAddress);
     return Number(balance) / 1e18;
   }
 
@@ -111,9 +115,11 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
    * Get full wallet balance info
    */
   async getWalletBalance(address: string): Promise<WalletBalance> {
+    // Normalize address to prevent ENS resolution on networks that don't support it
+    const checksumAddress = ethers.getAddress(address);
     const [usdcWei, ethWei] = await Promise.all([
-      this.usdcContract.balanceOf(address) as Promise<bigint>,
-      this.provider.getBalance(address),
+      this.usdcContract.balanceOf(checksumAddress) as Promise<bigint>,
+      this.provider.getBalance(checksumAddress),
     ]);
 
     return {
@@ -121,7 +127,7 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
       usdcWei,
       eth: Number(ethWei) / 1e18,
       ethWei,
-      address,
+      address: checksumAddress,
     };
   }
 
@@ -142,6 +148,9 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
       if (!ethers.isAddress(request.recipient)) {
         throw new Error(`Invalid recipient address: ${request.recipient}`);
       }
+
+      // Normalize recipient address to prevent ENS resolution on networks that don't support it
+      const recipient = ethers.getAddress(request.recipient);
 
       // Validate amount
       if (request.amount <= 0) {
@@ -170,9 +179,9 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
         signer
       );
 
-      // Estimate gas
+      // Estimate gas (use normalized recipient address)
       const gasEstimate = await connectedContract.getFunction('transfer').estimateGas(
-        request.recipient,
+        recipient,
         amountWei
       );
 
@@ -180,19 +189,19 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
       const feeData = await this.provider.getFeeData();
       const gasPrice = feeData.gasPrice || BigInt(1e9);
 
-      console.log(`[USDC Transfer] Sending ${request.amount} USDC from ${sender} to ${request.recipient}`);
+      console.log(`[USDC Transfer] Sending ${request.amount} USDC from ${sender} to ${recipient}`);
       console.log(`[USDC Transfer] Gas estimate: ${gasEstimate}, Gas price: ${gasPrice}`);
 
-      // Execute transfer
+      // Execute transfer (use normalized recipient address)
       const tx = await connectedContract.getFunction('transfer')(
-        request.recipient,
+        recipient,
         amountWei,
         {
           gasLimit: request.gasLimit || gasEstimate * BigInt(12) / BigInt(10), // 20% buffer
         }
       );
 
-      this.emit('transfer:initiated', tx.hash, request.amount, request.recipient);
+      this.emit('transfer:initiated', tx.hash, request.amount, recipient);
       console.log(`[USDC Transfer] Transaction submitted: ${tx.hash}`);
 
       // Wait for confirmation with timeout (60 seconds)
@@ -211,7 +220,7 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
           success: false,
           txHash: tx.hash,
           amount: request.amount,
-          recipient: request.recipient,
+          recipient,
           sender,
           error: `Transaction submitted but confirmation timed out. TX: ${tx.hash}`,
           explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorerUrl}/tx/${tx.hash}`,
@@ -226,7 +235,7 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
           success: false,
           txHash: tx.hash,
           amount: request.amount,
-          recipient: request.recipient,
+          recipient,
           sender,
           error,
           timestamp,
@@ -240,7 +249,7 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
         gasUsed: receipt.gasUsed,
         effectiveGasPrice: receipt.gasPrice,
         amount: request.amount,
-        recipient: request.recipient,
+        recipient,
         sender,
         explorerUrl: `${BASE_SEPOLIA_CONFIG.blockExplorerUrl}/tx/${tx.hash}`,
         timestamp,
@@ -254,6 +263,7 @@ export class USDCTransfer extends EventEmitter<USDCTransferEvents> {
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       this.emit('transfer:failed', errorMessage);
 
+      // Use original request.recipient here since we may not have normalized it yet (error before normalization)
       return {
         success: false,
         amount: request.amount,
