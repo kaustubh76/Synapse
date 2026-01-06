@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { io, Socket } from 'socket.io-client'
+import type { Socket } from 'socket.io-client'
 
 const SOCKET_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -11,53 +11,63 @@ export function useSocket() {
   const socketRef = useRef<Socket | null>(null)
   const subscribersRef = useRef<Map<string, Set<(data: any) => void>>>(new Map())
 
-  // Initialize socket connection
+  // Initialize socket connection (client-side only)
   useEffect(() => {
-    const socket = io(SOCKET_URL, {
-      transports: ['websocket', 'polling'],
-      reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-    })
+    // Guard against SSR
+    if (typeof window === 'undefined') return
 
-    socketRef.current = socket
+    let socket: Socket
 
-    socket.on('connect', () => {
-      console.log('Socket connected:', socket.id)
-      setIsConnected(true)
+    // Dynamic import to avoid SSR issues
+    import('socket.io-client').then(({ io }) => {
+      socket = io(SOCKET_URL, {
+        transports: ['websocket', 'polling'],
+        reconnection: true,
+        reconnectionAttempts: 5,
+        reconnectionDelay: 1000,
+      })
 
-      // Join dashboard room for broadcast events
-      socket.emit('join_dashboard')
-    })
+      socketRef.current = socket
 
-    socket.on('disconnect', (reason) => {
-      console.log('Socket disconnected:', reason)
-      setIsConnected(false)
-    })
+      socket.on('connect', () => {
+        console.log('Socket connected:', socket.id)
+        setIsConnected(true)
 
-    socket.on('connect_error', (error) => {
-      console.error('Socket connection error:', error.message)
-      setIsConnected(false)
-    })
+        // Join dashboard room for broadcast events
+        socket.emit('join_dashboard')
+      })
 
-    // Handle all incoming events and dispatch to subscribers
-    socket.onAny((event: string, data: any) => {
-      setLastMessage({ event, data, timestamp: Date.now() })
+      socket.on('disconnect', (reason) => {
+        console.log('Socket disconnected:', reason)
+        setIsConnected(false)
+      })
 
-      const callbacks = subscribersRef.current.get(event)
-      if (callbacks) {
-        callbacks.forEach(callback => {
-          try {
-            callback(data)
-          } catch (error) {
-            console.error(`Error in socket callback for ${event}:`, error)
-          }
-        })
-      }
+      socket.on('connect_error', (error) => {
+        console.error('Socket connection error:', error.message)
+        setIsConnected(false)
+      })
+
+      // Handle all incoming events and dispatch to subscribers
+      socket.onAny((event: string, data: any) => {
+        setLastMessage({ event, data, timestamp: Date.now() })
+
+        const callbacks = subscribersRef.current.get(event)
+        if (callbacks) {
+          callbacks.forEach(callback => {
+            try {
+              callback(data)
+            } catch (error) {
+              console.error(`Error in socket callback for ${event}:`, error)
+            }
+          })
+        }
+      })
     })
 
     return () => {
-      socket.disconnect()
+      if (socket) {
+        socket.disconnect()
+      }
       socketRef.current = null
     }
   }, [])

@@ -1,6 +1,69 @@
 {
-  "version": "2.0",
-  "lastSaved": 0,
-  "profiles": {},
+  "version": "1.0",
+  "lastSaved": 1767572159144,
+  "profiles": {
+    "0xcF1A4587a4470634fc950270cab298B79b258eDe": {
+      "agentId": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+      "address": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+      "creditScore": 550,
+      "creditTier": "fair",
+      "lastScoreUpdate": 1767566726553,
+      "unsecuredCreditLimit": 200,
+      "dailySpendLimit": 20,
+      "monthlySpendLimit": 200,
+      "currentDailySpend": 0,
+      "currentMonthlySpend": 0,
+      "currentBalance": 0,
+      "availableCredit": 200,
+      "totalTransactions": 0,
+      "successfulPayments": 0,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "totalAmountPaid": 0,
+      "totalAmountOwed": 0,
+      "factors": {
+        "paymentHistory": 50,
+        "creditUtilization": 100,
+        "accountAge": 30,
+        "creditMix": 40,
+        "recentActivity": 50
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0
+    },
+    "eigen_agent_1767572141": {
+      "agentId": "eigen_agent_1767572141",
+      "address": "0xcF1A4587a4470634fc950270cab298B79b258eDe",
+      "creditScore": 550,
+      "creditTier": "fair",
+      "lastScoreUpdate": 1767572141490,
+      "unsecuredCreditLimit": 200,
+      "dailySpendLimit": 20,
+      "monthlySpendLimit": 200,
+      "currentDailySpend": 0,
+      "currentMonthlySpend": 0,
+      "currentBalance": 0,
+      "availableCredit": 200,
+      "totalTransactions": 0,
+      "successfulPayments": 0,
+      "latePayments": 0,
+      "defaults": 0,
+      "accountAge": 0,
+      "totalAmountPaid": 0,
+      "totalAmountOwed": 0,
+      "factors": {
+        "paymentHistory": 50,
+        "creditUtilization": 100,
+        "accountAge": 30,
+        "creditMix": 40,
+        "recentActivity": 50
+      },
+      "stakedAmount": 0,
+      "collateralRatio": 0,
+      "tierDiscount": 0
+    }
+  },
   "transactions": {}
 }

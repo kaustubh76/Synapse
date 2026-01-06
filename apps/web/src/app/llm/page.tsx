@@ -214,11 +214,15 @@ export default function LLMPage() {
       if (data.success) {
         setCreditProfile(data.data)
       } else {
-        // Create new profile
+        // Create new profile - require wallet address
+        if (!walletData?.address) {
+          console.warn('Wallet address required to create credit profile')
+          return
+        }
         const createResponse = await fetch(`${API_URL}/api/llm/credit/${id}/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ address: walletData?.address || '0xDemo' + Math.random().toString(36).substring(7) })
+          body: JSON.stringify({ address: walletData.address })
         })
         const createData = await createResponse.json()
         if (createData.success) {
