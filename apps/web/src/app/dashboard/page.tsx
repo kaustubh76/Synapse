@@ -264,22 +264,23 @@ export default function Dashboard() {
       {/* Header */}
       <PageHeader
         title="Network Dashboard"
-        icon={<LayoutDashboard className="w-6 h-6" />}
+        icon={<LayoutDashboard className="w-5 h-5 sm:w-6 sm:h-6" />}
         rightContent={
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <Link
               href="/x402"
-              className="btn-primary flex items-center gap-2 text-sm"
+              className="btn-primary flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm px-2 sm:px-3 py-1.5"
             >
-              <DollarSign className="w-4 h-4" />
-              <span className="hidden sm:inline">x402 Payments</span>
+              <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+              <span className="hidden xs:inline">x402</span>
+              <span className="hidden sm:inline"> Payments</span>
             </Link>
             <button
               onClick={fetchData}
               disabled={isLoading}
-              className="btn-secondary flex items-center gap-2"
+              className="btn-secondary flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5"
             >
-              <RefreshCw className={cn('w-4 h-4', isLoading && 'animate-spin')} />
+              <RefreshCw className={cn('w-3.5 h-3.5 sm:w-4 sm:h-4', isLoading && 'animate-spin')} />
               <span className="hidden sm:inline">Refresh</span>
             </button>
           </div>
@@ -288,25 +289,25 @@ export default function Dashboard() {
 
       <main className="page-content">
         {/* Top Row - Stats and Activity Feed */}
-        <div className="grid lg:grid-cols-3 gap-6 mb-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
           {/* Network Stats */}
-          <div className="lg:col-span-2">
+          <div className="lg:col-span-2 order-1">
             <NetworkStats stats={networkStats} isLive={isConnected} />
           </div>
 
-          {/* Live Activity Feed */}
-          <div className="lg:col-span-1">
+          {/* Live Activity Feed - On mobile, show after stats */}
+          <div className="lg:col-span-1 order-2">
             <LiveActivityFeed events={activityEvents} maxEvents={15} />
           </div>
         </div>
 
         {/* Capability Filter */}
-        <div className="mb-6">
-          <h2 className="text-sm font-medium text-dark-400 mb-3">Filter by Capability</h2>
-          <div className="flex flex-wrap gap-2">
+        <div className="mb-4 sm:mb-6">
+          <h2 className="text-xs sm:text-sm font-medium text-dark-400 mb-2 sm:mb-3">Filter by Capability</h2>
+          <div className="flex flex-wrap gap-1.5 sm:gap-2 overflow-x-auto pb-2 -mx-1 px-1">
             <button
               onClick={() => setSelectedCapability(null)}
-              className={cn('tab', selectedCapability === null && 'tab-active')}
+              className={cn('tab text-xs sm:text-sm whitespace-nowrap', selectedCapability === null && 'tab-active')}
             >
               All ({providers.length})
             </button>
@@ -314,7 +315,7 @@ export default function Dashboard() {
               <button
                 key={cap}
                 onClick={() => setSelectedCapability(cap)}
-                className={cn('tab', selectedCapability === cap && 'tab-active')}
+                className={cn('tab text-xs sm:text-sm whitespace-nowrap', selectedCapability === cap && 'tab-active')}
               >
                 {cap} ({providers.filter(p => p.capabilities.includes(cap)).length})
               </button>
@@ -327,31 +328,31 @@ export default function Dashboard() {
           variants={staggerContainer}
           initial="initial"
           animate="animate"
-          className="grid md:grid-cols-2 lg:grid-cols-3 gap-4"
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4"
         >
           {filteredProviders.map((provider) => (
             <motion.div
               key={provider.id}
               variants={staggerItem}
-              className="card-glow p-5"
+              className="card-glow p-3 sm:p-5"
             >
               {/* Header */}
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-white">{provider.name}</h3>
+              <div className="flex items-start justify-between mb-3 sm:mb-4">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5 sm:gap-2">
+                    <h3 className="font-semibold text-white text-sm sm:text-base truncate">{provider.name}</h3>
                     {provider.teeAttested && (
-                      <span title="TEE Attested">
-                        <Shield className="w-4 h-4 text-emerald-400" />
+                      <span title="TEE Attested" className="flex-shrink-0">
+                        <Shield className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400" />
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-dark-500 font-mono mt-1">
+                  <p className="text-[10px] sm:text-xs text-dark-500 font-mono mt-0.5 sm:mt-1 truncate">
                     {truncateAddress(provider.address)}
                   </p>
                 </div>
                 <span className={cn(
-                  'badge',
+                  'badge text-[10px] sm:text-xs ml-2 flex-shrink-0',
                   provider.status === 'ONLINE' ? 'badge-success' : 'badge-error'
                 )}>
                   {provider.status}
@@ -359,57 +360,62 @@ export default function Dashboard() {
               </div>
 
               {/* Description */}
-              <p className="text-sm text-dark-400 mb-4 line-clamp-2">
+              <p className="text-xs sm:text-sm text-dark-400 mb-3 sm:mb-4 line-clamp-2">
                 {provider.description}
               </p>
 
               {/* Capabilities */}
-              <div className="flex flex-wrap gap-1 mb-4">
-                {provider.capabilities.map(cap => (
+              <div className="flex flex-wrap gap-1 mb-3 sm:mb-4">
+                {provider.capabilities.slice(0, 4).map(cap => (
                   <span
                     key={cap}
-                    className="badge badge-accent"
+                    className="badge badge-accent text-[10px] sm:text-xs"
                   >
                     {cap}
                   </span>
                 ))}
+                {provider.capabilities.length > 4 && (
+                  <span className="badge badge-accent text-[10px] sm:text-xs">
+                    +{provider.capabilities.length - 4}
+                  </span>
+                )}
               </div>
 
               {/* Stats */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-dark-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-amber-400 mb-1">
-                    <Star className="w-3 h-3" />
-                    <span className="text-xs">Reputation</span>
+              <div className="grid grid-cols-2 gap-2 sm:gap-3">
+                <div className="bg-dark-800/50 rounded-lg p-1.5 sm:p-2">
+                  <div className="flex items-center gap-1 text-amber-400 mb-0.5 sm:mb-1">
+                    <Star className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    <span className="text-[10px] sm:text-xs">Reputation</span>
                   </div>
-                  <div className="text-lg font-bold text-white">
+                  <div className="text-sm sm:text-lg font-bold text-white">
                     {provider.reputationScore.toFixed(2)}
                   </div>
                 </div>
-                <div className="bg-dark-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-accent-400 mb-1">
-                    <Activity className="w-3 h-3" />
-                    <span className="text-xs">Jobs</span>
+                <div className="bg-dark-800/50 rounded-lg p-1.5 sm:p-2">
+                  <div className="flex items-center gap-1 text-accent-400 mb-0.5 sm:mb-1">
+                    <Activity className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    <span className="text-[10px] sm:text-xs">Jobs</span>
                   </div>
-                  <div className="text-lg font-bold text-white">
+                  <div className="text-sm sm:text-lg font-bold text-white">
                     {provider.successfulJobs}/{provider.totalJobs}
                   </div>
                 </div>
-                <div className="bg-dark-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-emerald-400 mb-1">
-                    <DollarSign className="w-3 h-3" />
-                    <span className="text-xs">Earned</span>
+                <div className="bg-dark-800/50 rounded-lg p-1.5 sm:p-2">
+                  <div className="flex items-center gap-1 text-emerald-400 mb-0.5 sm:mb-1">
+                    <DollarSign className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    <span className="text-[10px] sm:text-xs">Earned</span>
                   </div>
-                  <div className="text-lg font-bold text-white">
+                  <div className="text-sm sm:text-lg font-bold text-white">
                     {formatUSD(provider.totalEarnings)}
                   </div>
                 </div>
-                <div className="bg-dark-800/50 rounded-lg p-2">
-                  <div className="flex items-center gap-1 text-accent-400 mb-1">
-                    <Clock className="w-3 h-3" />
-                    <span className="text-xs">Avg Time</span>
+                <div className="bg-dark-800/50 rounded-lg p-1.5 sm:p-2">
+                  <div className="flex items-center gap-1 text-accent-400 mb-0.5 sm:mb-1">
+                    <Clock className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                    <span className="text-[10px] sm:text-xs">Avg Time</span>
                   </div>
-                  <div className="text-lg font-bold text-white">
+                  <div className="text-sm sm:text-lg font-bold text-white">
                     {provider.avgResponseTime > 0 ? `${Math.round(provider.avgResponseTime)}ms` : 'N/A'}
                   </div>
                 </div>
