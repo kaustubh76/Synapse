@@ -37,16 +37,58 @@ import defiRoutes from './routes/defi.js';
 import { setupWebSocket } from './websocket/index.js';
 import { setupEngineEvents } from './events/engine-events.js';
 import { getIntentEngine, getProviderRegistry, getLLMExecutionEngine, getAgentCreditScorer, validateAllConfig } from '@synapse/core';
+import { cacheMiddleware, cacheStatsMiddleware, apiCache } from './middleware/cache.js';
 
 const PORT = process.env.PORT || 3001;
-const ALLOWED_ORIGINS = [
+const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Static allowed origins
+const STATIC_ORIGINS = [
+  // Local development
   'http://localhost:3000',
+  'http://localhost:3001',
   'http://localhost:3002',
+  // Production deployments
   'https://synapse-web-gold.vercel.app',
   'https://synapse-web.vercel.app',
+  // Environment-configured URLs
   process.env.WEB_URL,
   process.env.RAILWAY_PUBLIC_DOMAIN ? `https://${process.env.RAILWAY_PUBLIC_DOMAIN}` : undefined,
+  process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : undefined,
 ].filter(Boolean) as string[];
+
+// Patterns for dynamic origin matching (Vercel preview deployments, etc.)
+const ORIGIN_PATTERNS = [
+  /^https:\/\/synapse-.*\.vercel\.app$/, // Vercel preview deployments
+  /^https:\/\/.*-synapse\.vercel\.app$/, // Alternative Vercel pattern
+];
+
+// Check if origin is allowed (static or pattern match)
+function isOriginAllowed(origin: string | undefined): boolean {
+  if (!origin) return true; // Allow requests with no origin (curl, mobile apps)
+
+  // Check static origins
+  if (STATIC_ORIGINS.includes(origin)) return true;
+
+  // Check pattern matches
+  for (const pattern of ORIGIN_PATTERNS) {
+    if (pattern.test(origin)) return true;
+  }
+
+  // In development, allow all localhost origins
+  if (NODE_ENV === 'development' && origin.startsWith('http://localhost:')) {
+    return true;
+  }
+
+  return false;
+}
+
+// Build list for Socket.IO (which needs explicit list)
+const ALLOWED_ORIGINS = [
+  ...STATIC_ORIGINS,
+  // Add common Vercel preview patterns for Socket.IO
+  /^https:\/\/synapse-.*\.vercel\.app$/,
+];
 
 async function main() {
   // Validate environment configuration at startup
@@ -71,25 +113,34 @@ async function main() {
   }));
   app.use(cors({
     origin: function (origin, callback) {
-      // Allow requests with no origin (like mobile apps or curl requests)
-      if (!origin) return callback(null, true);
-
-      if (ALLOWED_ORIGINS.indexOf(origin) === -1) {
-        const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
-        return callback(new Error(msg), false);
+      if (isOriginAllowed(origin)) {
+        return callback(null, true);
       }
-      return callback(null, true);
+
+      // Log rejected origins in development for debugging
+      if (NODE_ENV === 'development') {
+        console.warn(`CORS blocked origin: ${origin}`);
+      }
+
+      const msg = 'The CORS policy for this site does not allow access from the specified Origin.';
+      return callback(new Error(msg), false);
     },
-    credentials: true
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'x-client-address', 'x-request-id'],
   }));
   app.use(express.json());
+
+  // Cache stats endpoint (before other routes)
+  app.use(cacheStatsMiddleware);
 
   // Health check
   app.get('/health', (req, res) => {
     res.json({
       status: 'healthy',
       timestamp: Date.now(),
-      version: '0.1.0'
+      version: '0.1.0',
+      cache: apiCache.getStats(),
     });
   });
 
@@ -97,8 +148,8 @@ async function main() {
   const intentEngine = getIntentEngine();
   const providerRegistry = getProviderRegistry();
 
-  // Network stats endpoint for dashboard
-  app.get('/api/network/stats', (req, res) => {
+  // Network stats endpoint for dashboard (cached for 5 seconds)
+  app.get('/api/network/stats', cacheMiddleware.short, (req, res) => {
     const providerStats = providerRegistry.getStats();
     const openIntents = intentEngine.getOpenIntents();
     const allProviders = providerRegistry.getAllProviders();
