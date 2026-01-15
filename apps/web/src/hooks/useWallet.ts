@@ -12,12 +12,25 @@ export interface WalletInfo {
   balances?: Record<string, string>
 }
 
+// Reason why we're using demo mode
+export type DemoModeReason =
+  | 'api_unavailable'
+  | 'api_error'
+  | 'network_error'
+  | 'invalid_response'
+  | null
+
 export interface WalletState {
   wallet: WalletInfo | null
   isConnecting: boolean
   isConnected: boolean
   error: string | null
   balance: string
+  // New: track demo mode status
+  isDemoMode: boolean
+  demoModeReason: DemoModeReason
+  // New: last error for user feedback
+  lastConnectionError: string | null
 }
 
 export interface WalletContextType extends WalletState {
@@ -25,6 +38,10 @@ export interface WalletContextType extends WalletState {
   disconnect: () => void
   refreshBalance: () => Promise<void>
   transfer: (to: string, amount: string) => Promise<{ txHash: string; success: boolean }>
+  // New: retry real wallet connection
+  retryRealWallet: () => Promise<void>
+  // New: clear error
+  clearError: () => void
 }
 
 const STORAGE_KEY = 'synapse_wallet'
@@ -46,6 +63,9 @@ export function formatAddress(address: string): string {
   return `${address.slice(0, 6)}...${address.slice(-4)}`
 }
 
+// Demo balance - clearly marked as simulated
+const DEMO_INITIAL_BALANCE = '0.00' // Start at 0, not fake $100
+
 export function useWallet(): WalletContextType {
   const [state, setState] = useState<WalletState>({
     wallet: null,
@@ -53,6 +73,9 @@ export function useWallet(): WalletContextType {
     isConnected: false,
     error: null,
     balance: '0.00',
+    isDemoMode: false,
+    demoModeReason: null,
+    lastConnectionError: null,
   })
 
   // Load wallet from storage on mount (client-side only)
@@ -63,10 +86,14 @@ export function useWallet(): WalletContextType {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const wallet = JSON.parse(stored) as WalletInfo
+        const isDemoMode = wallet.type === 'demo'
         setState(prev => ({
           ...prev,
           wallet,
           isConnected: true,
+          isDemoMode,
+          // Restore balance appropriately
+          balance: isDemoMode ? DEMO_INITIAL_BALANCE : prev.balance,
         }))
       }
     } catch (e) {
@@ -78,9 +105,40 @@ export function useWallet(): WalletContextType {
     }
   }, [])
 
+  // Helper to create demo wallet with reason tracking
+  const createDemoWallet = useCallback((reason: DemoModeReason, errorMessage?: string) => {
+    const clientId = `demo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+    const wallet: WalletInfo = {
+      address: generateDemoAddress(clientId),
+      chain: 'base-sepolia',
+      type: 'demo',
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet))
+
+    setState(prev => ({
+      ...prev,
+      wallet,
+      isConnected: true,
+      isConnecting: false,
+      balance: DEMO_INITIAL_BALANCE,
+      isDemoMode: true,
+      demoModeReason: reason,
+      lastConnectionError: errorMessage || null,
+      error: null,
+    }))
+
+    return wallet
+  }, [])
+
   // Connect wallet (creates a Crossmint MPC wallet via API)
   const connect = useCallback(async () => {
-    setState(prev => ({ ...prev, isConnecting: true, error: null }))
+    setState(prev => ({
+      ...prev,
+      isConnecting: true,
+      error: null,
+      lastConnectionError: null,
+    }))
 
     try {
       // Create wallet via API (which uses Crossmint SDK)
@@ -92,66 +150,50 @@ export function useWallet(): WalletContextType {
         body: JSON.stringify({ linkedUser: clientId }),
       })
 
-      let wallet: WalletInfo
-
       if (response.ok) {
         const data = await response.json()
         if (data.success && data.wallet?.address) {
-          wallet = {
+          // Successfully created real wallet
+          const wallet: WalletInfo = {
             address: data.wallet.address,
             chain: data.wallet.chain || 'base-sepolia',
             type: 'custodial',
-            walletId: data.wallet.id, // Store wallet ID for balance/transfer calls
+            walletId: data.wallet.id,
           }
+
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet))
+
+          setState(prev => ({
+            ...prev,
+            wallet,
+            isConnected: true,
+            isConnecting: false,
+            balance: '0.00',
+            isDemoMode: false,
+            demoModeReason: null,
+            lastConnectionError: null,
+          }))
+          return
         } else {
-          // Fallback to demo wallet
-          wallet = {
-            address: generateDemoAddress(clientId),
-            chain: 'base-sepolia',
-            type: 'demo',
-          }
+          // API responded but with invalid data
+          console.warn('Invalid wallet response, falling back to demo mode')
+          createDemoWallet('invalid_response', 'Wallet API returned invalid data')
+          return
         }
       } else {
-        // Fallback to demo wallet if API unavailable
-        wallet = {
-          address: generateDemoAddress(clientId),
-          chain: 'base-sepolia',
-          type: 'demo',
-        }
+        // API error response
+        const errorText = await response.text().catch(() => 'Unknown error')
+        console.warn(`Wallet API error (${response.status}), falling back to demo mode`)
+        createDemoWallet('api_error', `API error: ${response.status} - ${errorText.slice(0, 100)}`)
+        return
       }
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet))
-
-      setState(prev => ({
-        ...prev,
-        wallet,
-        isConnected: true,
-        isConnecting: false,
-        balance: '0.00', // Start with 0, will be fetched from API
-      }))
     } catch (error) {
+      // Network error or other failure
       console.error('Wallet connection error:', error)
-
-      // Create demo wallet on error
-      const clientId = `demo_${Date.now()}`
-      const wallet: WalletInfo = {
-        address: generateDemoAddress(clientId),
-        chain: 'base-sepolia',
-        type: 'demo',
-      }
-
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(wallet))
-
-      setState(prev => ({
-        ...prev,
-        wallet,
-        isConnected: true,
-        isConnecting: false,
-        balance: '100.00',
-        error: null,
-      }))
+      const errorMessage = error instanceof Error ? error.message : 'Connection failed'
+      createDemoWallet('network_error', errorMessage)
     }
-  }, [])
+  }, [createDemoWallet])
 
   // Disconnect wallet
   const disconnect = useCallback(() => {
@@ -162,7 +204,33 @@ export function useWallet(): WalletContextType {
       isConnected: false,
       error: null,
       balance: '0.00',
+      isDemoMode: false,
+      demoModeReason: null,
+      lastConnectionError: null,
     })
+  }, [])
+
+  // Retry connecting with a real wallet (for users who want to retry after demo fallback)
+  const retryRealWallet = useCallback(async () => {
+    // First disconnect the demo wallet
+    localStorage.removeItem(STORAGE_KEY)
+    setState({
+      wallet: null,
+      isConnecting: false,
+      isConnected: false,
+      error: null,
+      balance: '0.00',
+      isDemoMode: false,
+      demoModeReason: null,
+      lastConnectionError: null,
+    })
+    // Then try to connect again
+    await connect()
+  }, [connect])
+
+  // Clear error message
+  const clearError = useCallback(() => {
+    setState(prev => ({ ...prev, lastConnectionError: null, error: null }))
   }, [])
 
   // Refresh balance
@@ -260,6 +328,8 @@ export function useWallet(): WalletContextType {
     disconnect,
     refreshBalance,
     transfer,
+    retryRealWallet,
+    clearError,
   }
 }
 
@@ -270,10 +340,15 @@ const defaultContextValue: WalletContextType = {
   isConnected: false,
   error: null,
   balance: '0.00',
+  isDemoMode: false,
+  demoModeReason: null,
+  lastConnectionError: null,
   connect: async () => {},
   disconnect: () => {},
   refreshBalance: async () => {},
   transfer: async () => ({ txHash: '', success: false }),
+  retryRealWallet: async () => {},
+  clearError: () => {},
 }
 
 // Context for wallet state (for use with provider)
