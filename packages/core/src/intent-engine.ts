@@ -30,6 +30,39 @@ interface IntentEngineEvents {
   'payment:settled': (intent: Intent, amount: number, txHash: string) => void;
 }
 
+// Configuration for memory management
+interface IntentEngineConfig {
+  // How long to keep completed/failed intents (default: 1 hour)
+  retentionPeriodMs?: number;
+  // How often to run cleanup (default: 5 minutes)
+  cleanupIntervalMs?: number;
+  // Maximum number of intents to keep in memory
+  maxIntents?: number;
+  // Maximum number of bids per intent to keep
+  maxBidsPerIntent?: number;
+}
+
+const DEFAULT_CONFIG: Required<IntentEngineConfig> = {
+  retentionPeriodMs: 60 * 60 * 1000, // 1 hour
+  cleanupIntervalMs: 5 * 60 * 1000,   // 5 minutes
+  maxIntents: 10000,
+  maxBidsPerIntent: 100,
+};
+
+// Statistics for monitoring
+interface EngineStats {
+  totalIntentsCreated: number;
+  totalIntentsCompleted: number;
+  totalIntentsFailed: number;
+  totalIntentsCancelled: number;
+  totalBidsReceived: number;
+  totalFailovers: number;
+  cleanupRuns: number;
+  intentsCleanedUp: number;
+  activeIntents: number;
+  activeTimers: number;
+}
+
 export class IntentEngine extends EventEmitter<IntentEngineEvents> {
   private intents: Map<string, Intent> = new Map();
   private bids: Map<string, Bid[]> = new Map(); // intentId -> bids
@@ -37,9 +70,155 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
   private biddingTimers: Map<string, NodeJS.Timeout> = new Map();
   private executionTimers: Map<string, NodeJS.Timeout> = new Map();
 
-  constructor() {
+  // Memory management
+  private config: Required<IntentEngineConfig>;
+  private cleanupTimer: NodeJS.Timeout | null = null;
+  private stats: EngineStats = {
+    totalIntentsCreated: 0,
+    totalIntentsCompleted: 0,
+    totalIntentsFailed: 0,
+    totalIntentsCancelled: 0,
+    totalBidsReceived: 0,
+    totalFailovers: 0,
+    cleanupRuns: 0,
+    intentsCleanedUp: 0,
+    activeIntents: 0,
+    activeTimers: 0,
+  };
+
+  constructor(config: IntentEngineConfig = {}) {
     super();
     this.bidScorer = new BidScorer();
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // Start periodic cleanup
+    this.startCleanupTimer();
+  }
+
+  // -------------------- MEMORY MANAGEMENT --------------------
+
+  /**
+   * Start periodic cleanup of old intents
+   */
+  private startCleanupTimer(): void {
+    this.cleanupTimer = setInterval(() => {
+      this.cleanup();
+    }, this.config.cleanupIntervalMs);
+
+    // Don't prevent process exit
+    if (this.cleanupTimer.unref) {
+      this.cleanupTimer.unref();
+    }
+  }
+
+  /**
+   * Stop cleanup timer
+   */
+  stopCleanupTimer(): void {
+    if (this.cleanupTimer) {
+      clearInterval(this.cleanupTimer);
+      this.cleanupTimer = null;
+    }
+  }
+
+  /**
+   * Clean up old completed/failed intents to free memory
+   */
+  cleanup(): void {
+    const now = Date.now();
+    const cutoff = now - this.config.retentionPeriodMs;
+    let cleanedUp = 0;
+
+    const terminalStatuses = [
+      IntentStatus.COMPLETED,
+      IntentStatus.FAILED,
+      IntentStatus.CANCELLED,
+    ];
+
+    for (const [intentId, intent] of this.intents) {
+      // Only clean up terminal state intents that are old enough
+      if (terminalStatuses.includes(intent.status)) {
+        const completedAt = intent.result?.completedAt || intent.createdAt;
+        if (completedAt < cutoff) {
+          // Clean up bids for this intent
+          this.bids.delete(intentId);
+
+          // Clean up any stale timers (shouldn't exist, but defensive)
+          this.clearBiddingTimer(intentId);
+          this.clearExecutionTimer(intentId);
+
+          // Remove intent
+          this.intents.delete(intentId);
+          cleanedUp++;
+        }
+      }
+    }
+
+    // Also enforce max intents limit
+    if (this.intents.size > this.config.maxIntents) {
+      // Remove oldest terminal intents first
+      const sortedIntents = Array.from(this.intents.entries())
+        .filter(([, i]) => terminalStatuses.includes(i.status))
+        .sort(([, a], [, b]) => a.createdAt - b.createdAt);
+
+      while (this.intents.size > this.config.maxIntents && sortedIntents.length > 0) {
+        const [intentId] = sortedIntents.shift()!;
+        this.intents.delete(intentId);
+        this.bids.delete(intentId);
+        cleanedUp++;
+      }
+    }
+
+    this.stats.cleanupRuns++;
+    this.stats.intentsCleanedUp += cleanedUp;
+
+    if (cleanedUp > 0) {
+      console.log(`[IntentEngine] Cleaned up ${cleanedUp} old intents. Active: ${this.intents.size}`);
+    }
+  }
+
+  /**
+   * Clear bidding timer for intent
+   */
+  private clearBiddingTimer(intentId: string): void {
+    const timer = this.biddingTimers.get(intentId);
+    if (timer) {
+      clearTimeout(timer);
+      this.biddingTimers.delete(intentId);
+    }
+  }
+
+  /**
+   * Get engine statistics
+   */
+  getStats(): EngineStats {
+    return {
+      ...this.stats,
+      activeIntents: this.intents.size,
+      activeTimers: this.biddingTimers.size + this.executionTimers.size,
+    };
+  }
+
+  /**
+   * Get memory usage info
+   */
+  getMemoryUsage(): {
+    intents: number;
+    bids: number;
+    biddingTimers: number;
+    executionTimers: number;
+  } {
+    let totalBids = 0;
+    for (const bids of this.bids.values()) {
+      totalBids += bids.length;
+    }
+
+    return {
+      intents: this.intents.size,
+      bids: totalBids,
+      biddingTimers: this.biddingTimers.size,
+      executionTimers: this.executionTimers.size,
+    };
   }
 
   // -------------------- INTENT CREATION --------------------
@@ -76,6 +255,9 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
 
     // Start bidding timer
     this.startBiddingTimer(intent);
+
+    // Track stats
+    this.stats.totalIntentsCreated++;
 
     this.emit('intent:created', intent);
     return intent;
@@ -168,6 +350,9 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
     this.rankBids(existingBids);
     this.bids.set(submission.intentId, existingBids);
 
+    // Track stats
+    this.stats.totalBidsReceived++;
+
     this.emit('bid:received', bid, intent);
     return bid;
   }
@@ -202,11 +387,15 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
     const intent = this.intents.get(intentId);
     if (!intent || intent.status !== IntentStatus.OPEN) return;
 
+    // Clean up bidding timer
+    this.clearBiddingTimer(intentId);
+
     const bids = this.bids.get(intentId) || [];
 
     if (bids.length === 0) {
       // No bids received
       intent.status = IntentStatus.FAILED;
+      this.stats.totalIntentsFailed++;
       this.emit('intent:failed', intent, 'No bids received');
       return;
     }
@@ -329,6 +518,9 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
       this.emit('bid:updated', winningBid);
     }
 
+    // Track stats
+    this.stats.totalIntentsCompleted++;
+
     this.emit('intent:completed', intent);
     return true;
   }
@@ -364,6 +556,9 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
         this.emit('bid:updated', newBid);
       }
 
+      // Track stats
+      this.stats.totalFailovers++;
+
       this.emit('failover:triggered', intent, failedProvider!, nextProvider);
       this.emit('intent:updated', intent);
 
@@ -372,6 +567,7 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
     } else {
       // No more failover options
       intent.status = IntentStatus.FAILED;
+      this.stats.totalIntentsFailed++;
       this.emit('intent:failed', intent, 'All providers failed');
     }
   }
@@ -437,31 +633,60 @@ export class IntentEngine extends EventEmitter<IntentEngineEvents> {
     }
 
     intent.status = IntentStatus.CANCELLED;
+    this.stats.totalIntentsCancelled++;
     this.emit('intent:updated', intent);
     return true;
   }
 
   // For testing/demo - force close bidding immediately
   forceCloseBidding(intentId: string): void {
-    const timer = this.biddingTimers.get(intentId);
-    if (timer) {
-      clearTimeout(timer);
-      this.biddingTimers.delete(intentId);
-    }
+    this.clearBiddingTimer(intentId);
     this.closeBidding(intentId);
+  }
+
+  /**
+   * Destroy engine and clean up all resources
+   */
+  destroy(): void {
+    // Stop cleanup timer
+    this.stopCleanupTimer();
+
+    // Clear all bidding timers
+    for (const timer of this.biddingTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.biddingTimers.clear();
+
+    // Clear all execution timers
+    for (const timer of this.executionTimers.values()) {
+      clearTimeout(timer);
+    }
+    this.executionTimers.clear();
+
+    // Remove all event listeners
+    this.removeAllListeners();
+
+    // Clear data
+    this.intents.clear();
+    this.bids.clear();
+
+    console.log('[IntentEngine] Destroyed and cleaned up all resources');
   }
 }
 
 // Singleton instance for the application
 let engineInstance: IntentEngine | null = null;
 
-export function getIntentEngine(): IntentEngine {
+export function getIntentEngine(config?: IntentEngineConfig): IntentEngine {
   if (!engineInstance) {
-    engineInstance = new IntentEngine();
+    engineInstance = new IntentEngine(config);
   }
   return engineInstance;
 }
 
 export function resetIntentEngine(): void {
+  if (engineInstance) {
+    engineInstance.destroy();
+  }
   engineInstance = null;
 }
