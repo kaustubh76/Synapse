@@ -51,6 +51,14 @@ export class FlashLoanManager extends EventEmitter {
   private totalFees: number = 0;
   private failedLoans: number = 0;
 
+  // Concurrency control - prevent race conditions
+  private reservedAmount: number = 0;
+  private lockQueue: Array<{
+    resolve: (acquired: boolean) => void;
+    amount: number;
+  }> = [];
+  private isProcessingQueue: boolean = false;
+
   constructor(config: FlashLoanManagerConfig) {
     super();
     this.liquidityPool = config.liquidityPoolManager;
@@ -58,6 +66,79 @@ export class FlashLoanManager extends EventEmitter {
     this.feeRate = config.feeRate ?? FLASH_LOAN_CONFIG.feeRate;
     this.maxPoolRatio = config.maxPoolRatio ?? FLASH_LOAN_CONFIG.maxPoolRatio;
     this.maxExecutionTimeMs = config.maxExecutionTimeMs ?? FLASH_LOAN_CONFIG.maxExecutionTimeMs;
+  }
+
+  /**
+   * Acquire a lock for the specified amount
+   * This prevents race conditions when multiple flash loans are requested
+   */
+  private async acquireLock(amount: number): Promise<boolean> {
+    return new Promise((resolve) => {
+      this.lockQueue.push({ resolve, amount });
+      this.processLockQueue();
+    });
+  }
+
+  /**
+   * Release the lock after flash loan completes (success or failure)
+   */
+  private releaseLock(amount: number): void {
+    this.reservedAmount = Math.max(0, this.reservedAmount - amount);
+    this.processLockQueue();
+  }
+
+  /**
+   * Process the lock queue - grant locks in order if liquidity available
+   */
+  private processLockQueue(): void {
+    if (this.isProcessingQueue) return;
+    this.isProcessingQueue = true;
+
+    while (this.lockQueue.length > 0) {
+      const next = this.lockQueue[0];
+      const availability = this.checkAvailabilityWithReserved(next.amount);
+
+      if (availability.available) {
+        // Grant the lock
+        this.reservedAmount += next.amount;
+        this.lockQueue.shift();
+        next.resolve(true);
+      } else {
+        // Can't grant - stop processing (maintain order)
+        break;
+      }
+    }
+
+    this.isProcessingQueue = false;
+  }
+
+  /**
+   * Check availability accounting for already-reserved amounts
+   */
+  private checkAvailabilityWithReserved(requestedAmount: number): FlashLoanAvailability {
+    const pool = this.liquidityPool.getPool(this.defaultPoolId);
+    if (!pool) {
+      return {
+        available: false,
+        maxAmount: 0,
+        feeRate: this.feeRate,
+        poolUtilization: 1,
+      };
+    }
+
+    const availableForBorrowing = this.liquidityPool.getAvailableForBorrowing(this.defaultPoolId);
+    // Subtract already reserved amounts from available liquidity
+    const effectiveAvailable = Math.max(0, availableForBorrowing - this.reservedAmount);
+    const maxFlashAmount = effectiveAvailable * this.maxPoolRatio;
+
+    const available = requestedAmount <= maxFlashAmount;
+
+    return {
+      available,
+      maxAmount: maxFlashAmount,
+      feeRate: this.feeRate,
+      poolUtilization: pool.utilizationRate,
+    };
   }
 
   // ==========================================================================
@@ -69,6 +150,9 @@ export class FlashLoanManager extends EventEmitter {
    *
    * The callback function receives the loan and must return a result
    * indicating repayment. If repayment fails, the entire operation fails.
+   *
+   * This method uses atomic locking to prevent race conditions where
+   * concurrent flash loans could exceed the max pool ratio.
    */
   async flash(
     borrower: string,
@@ -95,16 +179,17 @@ export class FlashLoanManager extends EventEmitter {
       };
     }
 
-    // Check availability
-    const availability = this.checkAvailability(amount);
-    if (!availability.available) {
+    // Acquire lock atomically - this prevents race conditions
+    // The lock ensures only one flash loan can reserve liquidity at a time
+    const lockAcquired = await this.acquireLock(amount);
+    if (!lockAcquired) {
       return {
         success: false,
         loanId: '',
         amount: 0,
         fee: 0,
-        executionDurationMs: 0,
-        error: `Insufficient liquidity. Max available: $${availability.maxAmount.toFixed(2)}`,
+        executionDurationMs: Date.now() - startTime,
+        error: `Insufficient liquidity after queuing. Max available: $${this.checkAvailability().maxAmount.toFixed(2)}`,
       };
     }
 
@@ -227,6 +312,9 @@ export class FlashLoanManager extends EventEmitter {
         executionDurationMs: loan.executionDurationMs,
         error: loan.error,
       };
+    } finally {
+      // Always release the lock when done (success or failure)
+      this.releaseLock(amount);
     }
   }
 
