@@ -23,7 +23,37 @@ export interface CreditTransaction {
   txHash?: string;           // Real blockchain transaction hash
   blockNumber?: number;      // Block number for verification
   explorerUrl?: string;      // BaseScan link for easy verification
+  // Anti-gaming tracking
+  scoreImpact?: number;      // How much this payment affected the score
 }
+
+// Anti-gaming configuration
+const ANTI_GAMING_CONFIG = {
+  // Minimum time between score-impacting payments (in milliseconds)
+  minPaymentInterval: 60 * 1000, // 1 minute
+
+  // Minimum payment amount to count for score improvement
+  minPaymentAmount: 0.01, // $0.01 USDC
+
+  // Maximum payments that can impact score per hour
+  maxPaymentsPerHour: 10,
+
+  // Maximum payments that can impact score per day
+  maxPaymentsPerDay: 50,
+
+  // Base score increase per payment (before modifiers)
+  baseScoreIncrease: 5,
+
+  // Maximum score increase per payment
+  maxScoreIncrease: 15,
+
+  // Bonus multiplier for larger payments
+  largePaymentThreshold: 1, // $1 USDC
+  largePaymentBonus: 5,
+
+  // Penalty for rapid small payments (potential gaming)
+  rapidPaymentPenalty: 0.5, // 50% reduction in score impact
+};
 
 export interface CreditScorerConfig {
   persistencePath?: string;
@@ -406,20 +436,100 @@ export class AgentCreditScorer extends EventEmitter {
     return txn;
   }
 
+  /**
+   * Check anti-gaming rules for payment score impact
+   */
+  private checkAntiGamingRules(agentId: string, amount: number): {
+    shouldImpactScore: boolean;
+    reason?: string;
+    scoreMultiplier: number;
+  } {
+    const txns = this.transactions.get(agentId) || [];
+    const now = Date.now();
+
+    // Check minimum payment amount
+    if (amount < ANTI_GAMING_CONFIG.minPaymentAmount) {
+      return {
+        shouldImpactScore: false,
+        reason: 'Payment below minimum threshold',
+        scoreMultiplier: 0,
+      };
+    }
+
+    // Get recent payments
+    const recentPayments = txns.filter(
+      t => t.type === 'payment' && t.timestamp > now - ANTI_GAMING_CONFIG.minPaymentInterval
+    );
+
+    // Check minimum interval between payments
+    if (recentPayments.length > 0) {
+      return {
+        shouldImpactScore: false,
+        reason: 'Too soon since last payment',
+        scoreMultiplier: 0,
+      };
+    }
+
+    // Check hourly payment limit
+    const hourAgo = now - 60 * 60 * 1000;
+    const paymentsLastHour = txns.filter(t => t.type === 'payment' && t.timestamp > hourAgo);
+    if (paymentsLastHour.length >= ANTI_GAMING_CONFIG.maxPaymentsPerHour) {
+      return {
+        shouldImpactScore: false,
+        reason: 'Hourly payment limit reached',
+        scoreMultiplier: 0,
+      };
+    }
+
+    // Check daily payment limit
+    const dayAgo = now - 24 * 60 * 60 * 1000;
+    const paymentsLastDay = txns.filter(t => t.type === 'payment' && t.timestamp > dayAgo);
+    if (paymentsLastDay.length >= ANTI_GAMING_CONFIG.maxPaymentsPerDay) {
+      return {
+        shouldImpactScore: false,
+        reason: 'Daily payment limit reached',
+        scoreMultiplier: 0,
+      };
+    }
+
+    // Calculate score multiplier
+    let scoreMultiplier = 1.0;
+
+    // Bonus for larger payments
+    if (amount >= ANTI_GAMING_CONFIG.largePaymentThreshold) {
+      scoreMultiplier = 1.0 + Math.min(0.5, amount / 20); // Up to 50% bonus
+    }
+
+    // Check for rapid small payment pattern (gaming attempt)
+    const last10Payments = txns.filter(t => t.type === 'payment').slice(-10);
+    if (last10Payments.length >= 5) {
+      const avgAmount = last10Payments.reduce((sum, t) => sum + t.amount, 0) / last10Payments.length;
+      if (avgAmount < 0.10) {
+        scoreMultiplier *= ANTI_GAMING_CONFIG.rapidPaymentPenalty;
+      }
+    }
+
+    return { shouldImpactScore: true, scoreMultiplier };
+  }
+
   async recordPayment(
     agentId: string,
     amount: number,
     onTime: boolean = true,
     txHash?: string,
     blockNumber?: number
-  ): Promise<void> {
-    // Auto-create profile if it doesn't exist (use agentId as address if it looks like an address)
+  ): Promise<{ scoreImpact: number; antiGamingInfo?: string }> {
+    // Auto-create profile if it doesn't exist
     let profile = await this.getProfile(agentId);
     if (!profile) {
       const address = agentId.startsWith('0x') ? agentId : `0x${agentId}`;
       profile = await this.getOrCreateProfile(agentId, address);
       console.log(`[CreditScorer] Auto-created profile for agent: ${agentId}`);
     }
+
+    // Check anti-gaming rules
+    const antiGamingResult = this.checkAntiGamingRules(agentId, amount);
+    const oldScore = profile.creditScore;
 
     const txn: CreditTransaction = {
       id: `txn_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -431,12 +541,13 @@ export class AgentCreditScorer extends EventEmitter {
       txHash,
       blockNumber,
       explorerUrl: txHash ? `https://sepolia.basescan.org/tx/${txHash}` : undefined,
+      scoreImpact: 0,
     };
 
-    // Update profile
+    // Update profile - always track payment
     profile.currentBalance = Math.max(0, profile.currentBalance - amount);
     profile.availableCredit = profile.unsecuredCreditLimit - profile.currentBalance;
-    profile.totalAmountPaid = (profile.totalAmountPaid || 0) + amount; // Track cumulative payments
+    profile.totalAmountPaid = (profile.totalAmountPaid || 0) + amount;
 
     if (onTime) {
       profile.successfulPayments++;
@@ -449,11 +560,25 @@ export class AgentCreditScorer extends EventEmitter {
     txns.push(txn);
     this.transactions.set(agentId, txns);
 
-    // Update credit score
-    await this.updateCreditScore(agentId);
+    // Only update score if anti-gaming checks pass
+    let scoreImpact = 0;
+    if (antiGamingResult.shouldImpactScore) {
+      await this.updateCreditScore(agentId);
+      scoreImpact = profile.creditScore - oldScore;
+      txn.scoreImpact = scoreImpact;
+    }
 
     this.markDirty();
-    this.emit('payment_recorded', { agentId, amount, onTime, profile });
+    this.emit('payment_recorded', {
+      agentId,
+      amount,
+      onTime,
+      profile,
+      scoreImpact,
+      antiGamingInfo: antiGamingResult.reason,
+    });
+
+    return { scoreImpact, antiGamingInfo: antiGamingResult.reason };
   }
 
   async recordDefault(agentId: string, amount: number): Promise<void> {
